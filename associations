@@ -1,0 +1,76 @@
+{
+  "associations": [
+    {
+      "id": "67ec1ffd2de29a3bb6e4cd22",
+      "associationType": "USER_DEFINED",
+      "firstObjectLabel": "Owner",
+      "firstObjectKey": "contact",
+      "secondObjectLabel": "Owner",
+      "secondObjectKey": "contact",
+      "key": "owner",
+      "locationId": "mGAU84INytusQO0Fo5P9"
+    },
+    {
+      "id": "67ec210e35f5b25402d79de4",
+      "associationType": "USER_DEFINED",
+      "firstObjectLabel": "Owner",
+      "firstObjectKey": "contact",
+      "secondObjectLabel": "Pet",
+      "secondObjectKey": "custom_objects.pets",
+      "key": "pet_owner",
+      "locationId": "mGAU84INytusQO0Fo5P9"
+    },
+    {
+      "id": "67ffe765b2f3c29b201b9993",
+      "associationType": "USER_DEFINED",
+      "firstObjectLabel": "Vaccine Records",
+      "firstObjectKey": "contact",
+      "secondObjectLabel": "Vaccine Records",
+      "secondObjectKey": "custom_objects.vaccine_records",
+      "key": "vaccine_records",
+      "locationId": "mGAU84INytusQO0Fo5P9"
+    },
+    {
+      "id": "67ffe69c0812c47e40553e11",
+      "associationType": "USER_DEFINED",
+      "firstObjectLabel": "Vaccine",
+      "firstObjectKey": "custom_objects.pets",
+      "secondObjectLabel": "Vaccine",
+      "secondObjectKey": "custom_objects.vaccine_records",
+      "key": "vaccine",
+      "locationId": "mGAU84INytusQO0Fo5P9"
+    },
+    {
+      "id": "67ffe6ac91fb9898afffc407",
+      "associationType": "USER_DEFINED",
+      "firstObjectLabel": "Reports from Champs",
+      "firstObjectKey": "custom_objects.pets",
+      "secondObjectLabel": "Reports from Champs",
+      "secondObjectKey": "custom_objects.reports",
+      "key": "reports_from_champs",
+      "locationId": "mGAU84INytusQO0Fo5P9"
+    },
+    {
+      "id": "OPPORTUNITIES_CONTACTS_ASSOCIATION",
+      "associationType": "SYSTEM_DEFINED",
+      "firstObjectLabel": "OPPORTUNITY_TO_CONTACT",
+      "firstObjectKey": "opportunity",
+      "secondObjectLabel": "CONTACT_TO_OPPORTUNITY",
+      "secondObjectKey": "contact",
+      "key": "OPPORTUNITIES_CONTACTS_ASSOCIATION",
+      "locationId": "mGAU84INytusQO0Fo5P9"
+    },
+    {
+      "id": "BUSINESSES_CONTACTS_ASSOCIATION",
+      "associationType": "SYSTEM_DEFINED",
+      "firstObjectLabel": "Primary Company",
+      "firstObjectKey": "business",
+      "secondObjectLabel": "Contacts",
+      "secondObjectKey": "contact",
+      "key": "BUSINESSES_CONTACTS_ASSOCIATION",
+      "locationId": "mGAU84INytusQO0Fo5P9"
+    }
+  ],
+  "total": 7,
+  "traceId": "8a5d7d96-3afa-485a-9950-c500aee910be"
+}
