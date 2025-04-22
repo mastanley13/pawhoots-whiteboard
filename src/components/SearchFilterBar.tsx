@@ -36,13 +36,13 @@ interface SearchFilterBarProps {
 }
 
 export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({ 
-  locationFilter, setLocationFilter,
-  traitFilter, setTraitFilter,
-  selectedStaff, setSelectedStaff,
-  staff,
-  showAlerts, setShowAlerts,
-  showScheduler, setShowScheduler,
-  showImport, setShowImport,
+  // locationFilter, setLocationFilter, // Removed unused
+  // traitFilter, setTraitFilter, // Removed unused
+  // selectedStaff, setSelectedStaff, // Removed unused
+  // staff, // Removed unused
+  // showAlerts, setShowAlerts, // Removed unused
+  // showScheduler, setShowScheduler, // Removed unused
+  // showImport, setShowImport, // Removed unused
   // GHL Autocomplete Props
   ghlSearchQuery,
   setGhlSearchQuery,

@@ -1,19 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Dog, Staff, LocationArea } from '../types/types';
+import { Dog } from '../types/types';
 import { formatTimeElapsed } from "../utils";
-import { ScheduleMoveModal } from './ScheduleMoveModal';
-import { getPetOwnerContactDetails } from '../services/api';
+import { getPetOwnerContactDetails, getPetVaccineRecords, GhlVaccineRecord } from '../services/api';
+import { ContactDetailsModal } from './ContactDetailsModal';
 
 interface DogDetailsModalProps {
   dog: Dog;
-  getStaffById: (staffId: string | null) => Staff | null;
-  scheduleMove: (dogId: string, targetArea: LocationArea, targetPosition: number | null, scheduledTime: Date) => void;
-  deleteScheduledMove: (dogId: string, moveId: string) => void;
   onClose: () => void;
 }
 
 // Interface for owner contact details
-interface OwnerContact {
+export interface OwnerContact {
   id: string;
   name?: string;
   firstName?: string;
@@ -38,17 +35,22 @@ interface OwnerContact {
   source?: string;
 }
 
+// NEW: Interface for the wrapper object received from the API call
+interface ContactApiResponse {
+  contact: OwnerContact;
+  traceId?: string; // Include traceId if needed, mark as optional
+}
+
 export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({ 
   dog, 
-  getStaffById,
-  scheduleMove,
-  deleteScheduledMove,
-  onClose 
+  onClose
 }) => {
-  const [activeTab, setActiveTab] = useState<'info' | 'history' | 'schedule'>('info');
-  const [showScheduleMove, setShowScheduleMove] = useState(false);
-  const [ownerContacts, setOwnerContacts] = useState<OwnerContact[]>([]);
+  const [activeTab, setActiveTab] = useState<'info' | 'history'>('info');
+  const [ownerContacts, setOwnerContacts] = useState<ContactApiResponse[]>([]); 
   const [isLoadingContacts, setIsLoadingContacts] = useState(false);
+  const [selectedContact, setSelectedContact] = useState<OwnerContact | null>(null);
+  const [vaccineRecords, setVaccineRecords] = useState<GhlVaccineRecord[]>([]);
+  const [isLoadingVaccines, setIsLoadingVaccines] = useState(false);
 
   // Get the most recent yard and run assignments from location history
   const getMostRecentLocation = (locationType: 'yard' | 'run'): string => {
@@ -71,14 +73,6 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
       : 'None';
   };
 
-  const handleScheduleMove = (
-    targetArea: LocationArea,
-    targetPosition: number | null,
-    scheduledTime: Date
-  ) => {
-    scheduleMove(dog.id, targetArea, targetPosition, scheduledTime);
-  };
-
   // Fetch owner contact details when the dog is selected
   useEffect(() => {
     const fetchOwnerContacts = async () => {
@@ -89,7 +83,10 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
         console.log(`Fetching owner contacts for pet ID: ${dog.id}`);
         const contacts = await getPetOwnerContactDetails(dog.id);
         console.log(`Received ${contacts.length} owner contacts:`, contacts);
-        setOwnerContacts(contacts);
+        // Ensure the fetched data matches the ContactApiResponse structure
+        // If getPetOwnerContactDetails already returns the correct structure, this is fine.
+        // If not, we might need to map it here.
+        setOwnerContacts(contacts as ContactApiResponse[]); // Assuming the structure matches
       } catch (error) {
         console.error('Error fetching owner contacts:', error);
         setOwnerContacts([]);
@@ -100,6 +97,39 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
     
     fetchOwnerContacts();
   }, [dog.id]);
+
+  // Fetch vaccine records when the dog is selected
+  useEffect(() => {
+    const fetchVaccineRecords = async () => {
+      if (!dog.id) return;
+      
+      setIsLoadingVaccines(true);
+      try {
+        console.log(`Fetching vaccine records for pet ID: ${dog.id}`);
+        const records = await getPetVaccineRecords(dog.id);
+        console.log(`Received ${records.length} vaccine records:`, records);
+        setVaccineRecords(records);
+      } catch (error) {
+        console.error('Error fetching vaccine records:', error);
+        setVaccineRecords([]);
+      } finally {
+        setIsLoadingVaccines(false);
+      }
+    };
+    
+    fetchVaccineRecords();
+  }, [dog.id]);
+
+  // Helper to format date string (handles null/undefined)
+  const formatDate = (dateStr: string | undefined | null): string => {
+    if (!dateStr) return 'Not specified';
+    try {
+      return new Date(dateStr).toLocaleDateString();
+    } catch (e) {
+      console.error("Error formatting date:", dateStr, e);
+      return 'Invalid Date';
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -152,12 +182,6 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
             onClick={() => setActiveTab('history')}
           >
             History
-          </button>
-          <button
-            className={`px-4 py-2 ${activeTab === 'schedule' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-600'}`}
-            onClick={() => setActiveTab('schedule')}
-          >
-            Schedule
           </button>
         </div>
 
@@ -221,13 +245,6 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
             <div className="bg-gray-50 p-4 rounded-lg">
               <h3 className="font-bold text-[#005596] mb-2">Contact Information</h3>
               <div className="space-y-3">
-                {/* Primary Owner Information */}
-                <div>
-                  <p className="text-gray-600">Primary Owner</p>
-                  <p className="font-medium">{dog.owner || 'Unknown'}</p>
-                  {dog.ownerPhone && <p className="text-sm text-gray-500">{dog.ownerPhone}</p>}
-                </div>
-
                 {/* Pet Owner Associations Section */}
                 {isLoadingContacts ? (
                   <div className="text-gray-500">Loading associated contacts...</div>
@@ -235,31 +252,41 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
                   <div>
                     <p className="text-gray-600 font-medium mt-2">Associated Contacts</p>
                     <ul className="space-y-2 mt-1">
-                      {ownerContacts.map((contact) => (
-                        <li key={contact.id} className="border-l-2 border-blue-300 pl-2">
-                          <p className="font-medium">
-                            {contact.name || 
-                              `${contact.firstName || ''} ${contact.lastName || ''}`.trim() ||
-                              contact.companyName || 
-                              'Unnamed Contact'}
-                          </p>
-                          {contact.email && (
-                            <p className="text-sm text-gray-500">{contact.email}</p>
-                          )}
-                          {contact.phone && (
-                            <p className="text-sm text-gray-500">{contact.phone}</p>
-                          )}
-                          {/* Display address if available */}
-                          {contact.address?.line1 && (
-                            <p className="text-sm text-gray-500">
-                              {contact.address.line1}
-                              {contact.address.city && `, ${contact.address.city}`}
-                              {contact.address.state && `, ${contact.address.state}`}
-                              {contact.address.postalCode && ` ${contact.address.postalCode}`}
-                            </p>
-                          )}
-                        </li>
-                      ))}
+                      {/* UPDATE: Iterate over ContactApiResponse[] */}
+                      {ownerContacts.map((contactWrapper) => {
+                        // Access the actual contact object via contactWrapper.contact
+                        const contact = contactWrapper.contact; 
+                        if (!contact) return null; // Skip rendering if contact data is missing
+                        
+                        const displayName = contact.name || `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || contact.companyName || 'Unnamed Contact';
+                        
+                        return (
+                          <li key={contact.id} className="border-l-2 border-blue-300 pl-2">
+                            {/* Make the name clickable */}
+                            <button 
+                              onClick={() => setSelectedContact(contact)} 
+                              className="font-medium text-blue-600 hover:underline text-left w-full cursor-pointer"
+                            >
+                              {displayName}
+                            </button>
+                            {contact.email && (
+                              <p className="text-sm text-gray-500">{contact.email}</p>
+                            )}
+                            {contact.phone && (
+                              <p className="text-sm text-gray-500">{contact.phone}</p>
+                            )}
+                            {/* Display address if available */}
+                            {contact.address?.line1 && (
+                              <p className="text-sm text-gray-500">
+                                {contact.address.line1}
+                                {contact.address.city && `, ${contact.address.city}`}
+                                {contact.address.state && `, ${contact.address.state}`}
+                                {contact.address.postalCode && ` ${contact.address.postalCode}`}
+                              </p>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 ) : (
@@ -290,40 +317,34 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
               </div>
             </div>
 
-            {/* Vaccination Status */}
+            {/* Vaccination Status - Updated Section */}
             <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="font-bold text-[#005596] mb-2">Vaccination Status</h3>
-              <div className="space-y-3">
-                {/* Rabies Vaccination */}
-                <div>
-                  <p className="text-gray-600">Rabies</p>
-                  <p className="font-medium">
-                    {dog.rabiesVaccination ? 
-                      `Vaccinated (Expires: ${new Date(dog.rabiesVaccination).toLocaleDateString()})` : 
-                      'Not on file'}
-                  </p>
+              <h3 className="font-bold text-[#005596] mb-2">Vaccine Records</h3>
+              {isLoadingVaccines ? (
+                <div className="text-gray-500">Loading vaccine records...</div>
+              ) : vaccineRecords.length > 0 ? (
+                <div className="space-y-4">
+                  {vaccineRecords.map((record) => {
+                    return (
+                      <div key={record.id} className="border p-3 rounded bg-white shadow-sm">
+                        <p className="text-gray-600 text-sm">Type</p>
+                        <p className="font-medium mb-2">{record.properties?.type || 'N/A'}</p>
+                        
+                        <p className="text-gray-600 text-sm">Status</p>
+                        <p className="font-medium mb-2">{record.properties?.status || 'N/A'}</p>
+                        
+                        <p className="text-gray-600 text-sm">Vaccine Date</p>
+                        <p className="font-medium mb-2">{formatDate(record.properties?.vaccine_date)}</p>
+                        
+                        <p className="text-gray-600 text-sm">Expiration Date</p>
+                        <p className="font-medium">{formatDate(record.properties?.expiration_date)}</p>
+                      </div>
+                    );
+                  })}
                 </div>
-
-                {/* DHPP Vaccination */}
-                <div>
-                  <p className="text-gray-600">DHPP</p>
-                  <p className="font-medium">
-                    {dog.dhppVaccination ? 
-                      `Vaccinated (Expires: ${new Date(dog.dhppVaccination).toLocaleDateString()})` : 
-                      'Not on file'}
-                  </p>
-                </div>
-
-                {/* Bordetella Vaccination */}
-                <div>
-                  <p className="text-gray-600">Bordetella</p>
-                  <p className="font-medium">
-                    {dog.bordetellaVaccination ? 
-                      `Vaccinated (Expires: ${new Date(dog.bordetellaVaccination).toLocaleDateString()})` : 
-                      'Not on file'}
-                  </p>
-                </div>
-              </div>
+              ) : (
+                <p className="text-gray-500 italic">No vaccine records found.</p>
+              )}
             </div>
 
             {/* Notes - Removed since we now have Special Notes in Basic Info */}
@@ -366,77 +387,13 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
             )}
           </div>
         )}
-
-        {/* Schedule Tab */}
-        {activeTab === 'schedule' && (
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="font-bold text-[#005596]">Scheduled Moves</h3>
-              <button
-                onClick={() => setShowScheduleMove(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-sm"
-              >
-                + New Schedule
-              </button>
-            </div>
-
-            {dog.scheduledMoves.length === 0 ? (
-              <p className="text-gray-500 italic">No scheduled moves</p>
-            ) : (
-              <div className="space-y-3">
-                {dog.scheduledMoves
-                  .filter(move => !move.completed)
-                  .sort((a, b) => a.scheduledTime.getTime() - b.scheduledTime.getTime())
-                  .map((move, index) => (
-                    <div key={index} className="bg-gray-50 p-3 rounded-lg flex justify-between items-center">
-                      <div>
-                        <p className="font-medium">
-                          {move.targetArea ? `Move to ${move.targetArea} (Position ${move.targetPosition})` : 'Move to Available Pool'}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          Scheduled for: {move.scheduledTime.toLocaleString()}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => deleteScheduledMove(dog.id, move.id)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-
-                  <h4 className="font-semibold text-[#005596] mt-6">Completed Moves</h4>
-                  {dog.scheduledMoves.filter(move => move.completed).length === 0 ? (
-                    <p className="text-gray-500 italic">No completed moves</p>
-                  ) : (
-                    dog.scheduledMoves
-                      .filter(move => move.completed)
-                      .sort((a, b) => b.scheduledTime.getTime() - a.scheduledTime.getTime())
-                      .map((move, index) => (
-                        <div key={index} className="bg-gray-50 p-3 rounded-lg opacity-70">
-                          <p className="font-medium">
-                            {move.targetArea ? `Moved to ${move.targetArea} (Position ${move.targetPosition})` : 'Moved to Available Pool'}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            Completed: {move.scheduledTime.toLocaleString()}
-                          </p>
-                        </div>
-                      ))
-                  )}
-              </div>
-            )}
-          </div>
-        )}
       </div>
-
-      {showScheduleMove && (
-        <ScheduleMoveModal
-          dog={dog}
-          onClose={() => setShowScheduleMove(false)}
-          onSchedule={handleScheduleMove}
+      
+      {/* Conditionally render the ContactDetailsModal */}
+      {selectedContact && (
+        <ContactDetailsModal 
+          contact={selectedContact} 
+          onClose={() => setSelectedContact(null)} 
         />
       )}
     </div>

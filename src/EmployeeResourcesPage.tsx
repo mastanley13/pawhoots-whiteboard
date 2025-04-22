@@ -1,43 +1,24 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Dog, Staff, LocationHistoryEntry, ScheduledMove, LocationArea } from './types/types'; // Adjusting types path
+import { Dog, Staff, LocationHistoryEntry, ScheduledMove, LocationArea } from './types/types'; // Removed DogColor import
 import { DogDetailsModal } from './components/DogDetailsModal';
 import { SearchFilterBar } from './components/SearchFilterBar';
 import { SchedulerPanel } from './components/SchedulerPanel';
 import { DogPool } from './components/DogPool';
 import { BoardingRunsSection } from './components/BoardingRunsSection';
 import { AreaSection } from './components/AreaSection';
-import { searchCustomObjectRecords } from './services/api';
+import {
+  searchCustomObjectRecords,
+  getCalendarEvents,
+  getAssociatedPetIds,
+  getPetRecordById,
+  mapGhlPetToDog,
+  GhlPetRecord
+} from './services/api';
 import { GHLContactSearch } from './components/GHLContactSearch';
 
 // Define a type for the GHL Pet record structure (adjust based on actual GHL response)
-interface GhlPetRecord {
-  id: string;
-  properties: {
-    [key: string]: any; // Use a more specific type if known, e.g., 'custom_objects.pets.pet' for name
-  };
-  // Media-related fields that might be in the response
-  profileImage?: string;
-  avatarUrl?: string;
-  profileUrl?: string;
-  imageUrl?: string;
-  photoUrl?: string;
-  // Custom fields array
-  customFields?: Array<{
-    id?: string;
-    name?: string;
-    value?: string;
-    [key: string]: any;
-  }>;
-  // Attachments array
-  attachments?: Array<{
-    id?: string;
-    url?: string;
-    name?: string;
-    mimeType?: string;
-    [key: string]: any;
-  }>;
-  // Add other relevant fields from GHL if needed
-}
+// REMOVED - Now imported from api.ts
+// interface GhlPetRecord { ... }
 
 // Removed areaConfigs as it's likely managed within AreaSection/BoardingRunsSection now
 
@@ -87,7 +68,7 @@ export function EmployeeResourcesPage() {
   const [showScheduler, setShowScheduler] = useState<boolean>(false);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null); // Renamed for clarity, holds ID
   const [showImport, setShowImport] = useState<boolean>(false);
-  const [dogs, setDogs] = useState<Dog[]>([]); // Empty array, no mock dogs
+  const [dogs, setDogs] = useState<Dog[]>([]); // Initial state is empty
   const [staff] = useState<Staff[]>([]); // Empty array, no mock staff
 
   // --- GHL State ---
@@ -95,6 +76,10 @@ export function EmployeeResourcesPage() {
   const [ghlPets, setGhlPets] = useState<GhlPetRecord[]>([]); // Suggestions from API
   const [selectedGhlPetId, setSelectedGhlPetId] = useState<string | null>(null); // ID of the selected suggestion
   const [isFetchingGhlPets, setIsFetchingGhlPets] = useState<boolean>(false);
+
+  // --- NEW: State for fetching scheduled dogs ---
+  const [isLoadingScheduledDogs, setIsLoadingScheduledDogs] = useState<boolean>(false);
+  const [fetchScheduledDogsError, setFetchScheduledDogsError] = useState<string | null>(null);
 
   // --- Debounce Search Query ---
   const debouncedGhlSearchQuery = useDebounce(ghlSearchQuery, 500); // 500ms delay
@@ -105,25 +90,160 @@ export function EmployeeResourcesPage() {
   const GHL_PET_OBJECT_KEY = "custom_objects.pets";
   const GHL_PET_NAME_FIELD_KEY = "custom_objects.pets.name"; // Corrected the field key based on petFields data
 
+  // Target Calendar IDs for scheduled dogs
+  const TARGET_CALENDAR_IDS = [
+    '8A8sN0yeST6qSmRZ85Dl', // Yard 1
+    'bbNCMyLoBqCKwp4IrZzE', // Yard 2
+    'GmhrXLC9VYsmFNLXWg1x', // Nala's Den
+    'Mio0TwZKlZRwXEQIJ1FC', // Trin's Town
+    'RPGNTsMRo8yJpuALjPOM'  // Chuck's Alley
+  ];
+
   // --- Helper Functions (defined in parent scope) ---
-  // Restore getStaffById if staff data is available
-  const getStaffById = useCallback((staffId: string | null): Staff | null => {
-    if (!staffId) return null;
-    // This requires the `staff` state to be populated
-    return staff.find(s => s.id === staffId) || null;
-  }, [staff]);
+
+  // Helper to parse dog name from event title (adjust regex as needed)
+  const parseDogNameFromTitle = (title: string): string | null => {
+      // Example patterns:
+      // "Boarding - Barry (Nala's Den)" -> Barry
+      // "Daycare - Fido" -> Fido
+      // "Grooming: Spot" -> Spot
+      const patterns = [
+          /- ([^\(]+) \(/, // Matches "- Name (" structure
+          /- (.*)$/,        // Matches "- Name" at the end
+          /: (.*)$/         // Matches ": Name" at the end
+      ];
+
+      for (const pattern of patterns) {
+          const match = title.match(pattern);
+          if (match && match[1]) {
+              return match[1].trim();
+          }
+      }
+      console.warn(`Could not parse dog name from title: "${title}"`);
+      return null; // Or potentially return the whole title or part of it as a fallback
+  };
 
   // --- Effects ---
-  // Remove localStorage loading and completely clear any existing dogs
+
+  // --- NEW: Effect to Fetch Today's Scheduled Dogs on Mount ---
   useEffect(() => {
-    // Clear any existing dog data in localStorage
-    localStorage.removeItem('dogWhiteboardData');
-    
-    // Explicitly reset dogs state to an empty array to override any existing data
-    setDogs([]);
-    
-    // Placeholder for fetching staff data if needed in the future
-    // fetchStaffData().then(setStaff);
+      const fetchTodaysScheduledDogs = async (): Promise<Dog[]> => {
+          if (!GHL_LOCATION_ID || GHL_LOCATION_ID === "YOUR_GHL_LOCATION_ID") {
+              console.warn("GHL Location ID not configured. Skipping scheduled dog fetch.");
+              return [];
+          }
+
+          console.log("Fetching today's scheduled dogs...");
+          const today = new Date();
+          const startTime = new Date(today.setHours(0, 0, 0, 0));
+          const endTime = new Date(today.setHours(23, 59, 59, 999));
+
+          const startTimeMillis = startTime.getTime();
+          const endTimeMillis = endTime.getTime();
+
+          const allDogPromises: Promise<Dog | null>[] = [];
+          const processedPetIds = new Set<string>(); // Track processed pet IDs to avoid duplicates
+
+          for (const calendarId of TARGET_CALENDAR_IDS) {
+              try {
+                  const events = await getCalendarEvents(calendarId, startTimeMillis, endTimeMillis, GHL_LOCATION_ID);
+                  console.log(`Found ${events.length} events for calendar ${calendarId}`);
+
+                  for (const event of events) {
+                      if (event.appointmentStatus === 'cancelled' || !event.contactId) {
+                          console.log(`Skipping event ${event.id} (status: ${event.appointmentStatus}, contactId: ${event.contactId})`);
+                          continue; // Skip cancelled or events without contacts
+                      }
+
+                      const contactId = event.contactId;
+                      const petIds = await getAssociatedPetIds(contactId, GHL_LOCATION_ID);
+
+                      if (petIds.length === 0) {
+                          console.log(`No pets found associated with contact ${contactId} for event ${event.id}`);
+                          continue;
+                      }
+
+                      let targetPetId: string | null = null;
+
+                      if (petIds.length === 1) {
+                          targetPetId = petIds[0];
+                          console.log(`Single pet found for contact ${contactId}: ${targetPetId}`);
+                      } else {
+                          console.log(`Multiple pets (${petIds.length}) found for contact ${contactId}, parsing title: "${event.title}"`);
+                          const parsedName = parseDogNameFromTitle(event.title);
+                          if (parsedName) {
+                              // Fetch details for all pets to find the match by name
+                              const petDetailsPromises = petIds.map(id => getPetRecordById(id, GHL_LOCATION_ID));
+                              const petRecords = (await Promise.all(petDetailsPromises)).filter(Boolean) as GhlPetRecord[];
+
+                              const matchedPet = petRecords.find(pet => {
+                                  const petName = pet.properties?.name || pet.properties?.[GHL_PET_NAME_FIELD_KEY];
+                                  return petName && petName.toLowerCase() === parsedName.toLowerCase();
+                              });
+
+                              if (matchedPet) {
+                                  targetPetId = matchedPet.id;
+                                  console.log(`Matched pet by name "${parsedName}": ${targetPetId}`);
+                              } else {
+                                  console.warn(`Could not find pet matching name "${parsedName}" from title "${event.title}" among IDs: ${petIds.join(', ')}`);
+                              }
+                          } else {
+                              console.warn(`Could not parse name from title "${event.title}" for multi-pet contact ${contactId}. Skipping event.`);
+                          }
+                      }
+
+                      if (targetPetId && !processedPetIds.has(targetPetId)) {
+                          processedPetIds.add(targetPetId); // Mark as processed
+                          // Add promise to fetch and map this pet
+                          allDogPromises.push(
+                              getPetRecordById(targetPetId, GHL_LOCATION_ID).then(petRecord => {
+                                  if (petRecord) {
+                                      const dog = mapGhlPetToDog(petRecord);
+                                      // Ensure initial location is pool
+                                      dog.location = { area: null, position: null };
+                                      return dog;
+                                  }
+                                  return null;
+                              })
+                          );
+                      }
+                  }
+              } catch (error) {
+                  console.error(`Error processing calendar ${calendarId}:`, error);
+                  // Optionally set error state here
+              }
+          }
+
+          // Wait for all pet fetching and mapping promises to resolve
+          const resolvedDogs = (await Promise.all(allDogPromises)).filter(Boolean) as Dog[];
+          console.log(`Finished fetching scheduled dogs. Found ${resolvedDogs.length} unique dogs.`);
+          return resolvedDogs;
+      };
+
+      // --- Execution Logic ---
+      const initializeDogs = async () => {
+          setIsLoadingScheduledDogs(true);
+          setFetchScheduledDogsError(null);
+          try {
+              // Clear any existing dog data in localStorage (still good practice)
+              localStorage.removeItem('dogWhiteboardData');
+
+              const scheduledDogs = await fetchTodaysScheduledDogs();
+              setDogs(scheduledDogs); // Set initial state with scheduled dogs
+          } catch (error) {
+              console.error("Error fetching scheduled dogs on mount:", error);
+              setFetchScheduledDogsError("Failed to load scheduled dogs. Please try refreshing.");
+              setDogs([]); // Set to empty on error
+          } finally {
+              setIsLoadingScheduledDogs(false);
+          }
+      };
+
+      initializeDogs();
+
+      // Placeholder for fetching staff data if needed in the future
+      // fetchStaffData().then(setStaff);
+
   }, []); // Empty dependency array ensures this runs only once on mount
 
   // Remove localStorage saving
@@ -253,23 +373,6 @@ export function EmployeeResourcesPage() {
   // --- State Modifying Callbacks ---
   // Removed assignStaffToDog function
 
-  // Restore scheduleMove callback
-  const scheduleMove = useCallback((dogId: string, targetArea: LocationArea | null, targetPosition: number | null, scheduledTime: Date) => {
-    setDogs(prev => prev.map(dog => {
-      if (dog.id === dogId) {
-        const newMove: ScheduledMove = {
-          id: `${dogId}-${Date.now()}`, // Simple unique ID
-          targetArea,
-          targetPosition,
-          scheduledTime,
-          completed: false
-        };
-        return { ...dog, scheduledMoves: [...(dog.scheduledMoves || []), newMove] };
-      }
-      return dog;
-    }));
-  }, []);
-
   // Restore deleteScheduledMove callback
   const deleteScheduledMove = useCallback((dogId: string, moveId: string) => {
     setDogs(prev => prev.map(dog => {
@@ -336,164 +439,42 @@ export function EmployeeResourcesPage() {
   // Handle import of a GHL Pet
   const handleImportGhlPet = useCallback(async (pet: GhlPetRecord) => {
     if (!pet || !pet.id) return;
-    
-    // Construct a new dog record from the pet record using the GHL pet's ID directly
-    const getProperty = (fieldName: string) => {
-      const shortName = fieldName.split('.').pop() || '';
-      return pet.properties[shortName] || pet.properties[fieldName] || null;
+
+    // Use the mapGhlPetToDog utility
+    const mappedDog = mapGhlPetToDog(pet);
+
+    // Ensure id is correctly passed (it's part of mappedDog)
+    const newDogData: Partial<Dog> & { id: string } = {
+        ...mappedDog,
+        // Override specific fields if needed, but mapGhlPetToDog should handle most
     };
-    
-    // Extract profile image URL from the pet record
-    const extractProfileImage = () => {
-      // Try different possible property names for the profile image
-      const profileImageFilename = 
-        getProperty('custom_objects.pets.profile_picture') || 
-        getProperty('profile_picture') ||
-        getProperty('custom_objects.pets.profileImage') || 
-        getProperty('custom_objects.pets.profile_image') || 
-        getProperty('custom_objects.pets.image') || 
-        getProperty('custom_objects.pets.photo');
-      
-      console.log(`Found raw profile image data: ${profileImageFilename}`);
-      
-      // If we have a filename, construct proper URL
-      if (profileImageFilename && typeof profileImageFilename === 'string') {
-        // If it's already a full URL (starts with http or https)
-        if (profileImageFilename.startsWith('http')) {
-          return profileImageFilename;
-        }
-        
-        // If it's just a filename, construct the URL to the image
-        // You may need to adjust this URL pattern based on your actual image storage location
-        const baseUrl = 'https://storage.googleapis.com/msgsndr/pet-images/';
-        return `${baseUrl}${encodeURIComponent(profileImageFilename)}`;
-      }
-      
-      // Check for avatarUrl or profileUrl in the record itself
-      const recordImage = pet.profileImage || pet.avatarUrl || pet.profileUrl || pet.imageUrl || pet.photoUrl;
-      if (recordImage) {
-        console.log(`Found profile image URL in record: ${recordImage}`);
-        return recordImage;
-      }
-      
-      // If no direct URL is found, try extracting from custom fields array if available
-      if (pet.customFields && Array.isArray(pet.customFields)) {
-        const imageField = pet.customFields.find((field: { name?: string; value?: string; [key: string]: any }) => 
-          field.name?.toLowerCase().includes('profile') || 
-          field.name?.toLowerCase().includes('image') || 
-          field.name?.toLowerCase().includes('photo') ||
-          field.name?.toLowerCase().includes('avatar')
-        );
-        
-        if (imageField?.value) {
-          console.log(`Found profile image URL in custom fields: ${imageField.value}`);
-          // If it's just a filename, construct proper URL
-          if (imageField.value.startsWith('http')) {
-            return imageField.value;
-          } else {
-            const baseUrl = 'https://storage.googleapis.com/msgsndr/pet-images/';
-            return `${baseUrl}${encodeURIComponent(imageField.value)}`;
-          }
-        }
-      }
-      
-      // If we still don't have an image, check for attachments
-      if (pet.attachments && Array.isArray(pet.attachments) && pet.attachments.length > 0) {
-        const imageAttachment = pet.attachments.find(attachment => 
-          attachment.mimeType?.startsWith('image/') || 
-          attachment.name?.match(/\.(jpg|jpeg|png|gif|webp)$/i)
-        );
-        
-        if (imageAttachment?.url) {
-          console.log(`Found profile image URL in attachments: ${imageAttachment.url}`);
-          return imageAttachment.url;
-        }
-      }
-      
-      return null; // No image found
-    };
-    
-    // Get vaccination dates from properties
-    const rabiesDate = getProperty('custom_objects.pets.rabies_vaccination') || 
-                       getProperty('rabies_vaccination');
-    const dhppDate = getProperty('custom_objects.pets.dhpp_vaccination') || 
-                     getProperty('dhpp_vaccination');
-    const bordetellaDate = getProperty('custom_objects.pets.bordetella_vaccination') || 
-                           getProperty('bordetella_vaccination');
-    
-    // Determine overall vaccination status
-    const determineVaccinationStatus = () => {
-      const now = new Date();
-      
-      // Check if any vaccination dates are available
-      if (!rabiesDate && !dhppDate && !bordetellaDate) {
-        return 'Unknown';
-      }
-      
-      // Check if any vaccination is expired
-      const isExpired = (dateStr: string | null) => {
-        if (!dateStr) return false;
-        try {
-          const expDate = new Date(dateStr);
-          return expDate < now;
-        } catch (e) {
-          return false;
-        }
-      };
-      
-      if (isExpired(rabiesDate) || isExpired(dhppDate) || isExpired(bordetellaDate)) {
-        return 'Expired';
-      }
-      
-      // Check if all required vaccinations are present
-      if (rabiesDate && dhppDate && bordetellaDate) {
-        return 'Current';
-      }
-      
-      // Some vaccinations are missing
-      return 'Incomplete';
-    };
-    
-    // Get the profile image URL
-    const profileImage = extractProfileImage() || undefined;
-    console.log(`Final profile image URL for ${getProperty('custom_objects.pets.name')}: ${profileImage}`);
-    
-    // Create a basic dog from the GHL pet data
-    const newDog: Partial<Dog> & { id: string } = {
-      id: pet.id, // Use the GHL pet ID directly as the dog ID for association lookup
-      name: getProperty('custom_objects.pets.name') || 'Unnamed Pet',
-      breed: getProperty('custom_objects.pets.breed') || 'Unknown Breed',
-      color: getProperty('custom_objects.pets.animal_color') || 'blue', // Fallback to a default color
-      traits: [], // Default empty traits, can be enhanced if traits are stored in custom fields
-      animalSize: getProperty('custom_objects.pets.animal_size'),
-      hairLength: getProperty('custom_objects.pets.hair_length'),
-      hairThickness: getProperty('custom_objects.pets.hair_thickness'), 
-      expectedGroomingTime: getProperty('custom_objects.pets.expected_grooming_time'),
-      specialNotes: getProperty('custom_objects.pets.special_notes') || getProperty('custom_objects.pets.notes'),
-      // Vaccination fields
-      rabiesVaccination: rabiesDate,
-      dhppVaccination: dhppDate,
-      bordetellaVaccination: bordetellaDate,
-      vaccinationStatus: determineVaccinationStatus(),
-      // Profile image
-      profileImage: profileImage
-    };
-    
-    console.log(`Importing pet with data:`, newDog);
-    
-    // Import the new dog
-    handleImportDog(newDog);
-    
+
+    console.log(`Importing pet with data:`, newDogData);
+
+    // Use the existing handleImportDog logic which merges/adds to state
+    handleImportDog(newDogData);
+
     // Close the import panel and select the newly imported dog
     setShowImport(false);
-    setSelectedGhlPetId(pet.id);
-    
-    // Find the dog in the dogs array and set it as selected
-    const importedDog = dogs.find(d => d.id === pet.id);
-    if (importedDog) {
-      setSelectedDog(importedDog);
-    }
-  }, [handleImportDog, dogs]);
+    setSelectedGhlPetId(pet.id); // Keep track of GHL ID selection if needed
+
+    // Find the dog in the *updated* dogs array and set it as selected
+    // Need to access the state *after* it updates, potentially using a follow-up effect
+    // For now, let's assume handleImportDog updates state sync enough for filtering
+    // Or, pass the mappedDog directly to setSelectedDog if handleImportDog logic is complex
+    // setDogs(currentDogs => { ... find and set selectedDog }); // Safer way
+    const findAndSetSelected = () => {
+      setDogs(currentDogs => {
+         const importedDog = currentDogs.find(d => d.id === pet.id);
+         if (importedDog) {
+           setSelectedDog(importedDog);
+         }
+         return currentDogs; // Return currentDogs to prevent state change loop if not found
+      });
+    };
+    findAndSetSelected(); // Call the function to update selectedDog based on new state
+
+  }, [handleImportDog, mapGhlPetToDog]); // Add mapGhlPetToDog dependency
 
   // --- Drag and Drop Handlers ---
   const handleDragStart = useCallback((e: React.DragEvent, dogId: string) => {
@@ -604,6 +585,19 @@ export function EmployeeResourcesPage() {
       {/* Play Area Status Section */}
       <section className="py-8 bg-white">
         <div className="container mx-auto px-4">
+
+          {/* --- NEW: Loading/Error Display for Scheduled Dogs --- */}
+          {isLoadingScheduledDogs && (
+            <div className="text-center p-4 bg-blue-100 border border-blue-300 rounded-md mb-6">
+              <p className="font-semibold text-blue-800">Loading scheduled dogs...</p>
+            </div>
+          )}
+          {fetchScheduledDogsError && (
+            <div className="text-center p-4 bg-red-100 border border-red-300 rounded-md mb-6">
+              <p className="font-semibold text-red-800">Error: {fetchScheduledDogsError}</p>
+            </div>
+          )}
+
           <div className="space-y-8">
             {/* Search and Filter Bar - Adjust props */}
             <SearchFilterBar
@@ -701,9 +695,6 @@ export function EmployeeResourcesPage() {
         <DogDetailsModal
            dog={selectedDog}
            onClose={() => setSelectedDog(null)}
-           scheduleMove={scheduleMove}
-           deleteScheduledMove={deleteScheduledMove}
-           getStaffById={getStaffById}
         />
       )}
     </div>
