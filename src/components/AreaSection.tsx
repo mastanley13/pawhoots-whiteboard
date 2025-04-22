@@ -10,10 +10,6 @@ interface AreaSectionProps {
   getDogsInPosition: (area: LocationArea, position: number) => Dog[];
   handleDragOver: (e: React.DragEvent) => void;
   handleDrop: (e: React.DragEvent, area: LocationArea, position: number) => void;
-  // Props needed by DropZone/DogCard
-  getStaffById: (staffId: string | null) => any;
-  showAlerts: boolean;
-  longStayThresholdMs: number;
   handleDragStart: (e: React.DragEvent, dogId: string) => void;
   setSelectedDog: (dog: Dog | null) => void;
 }
@@ -26,10 +22,6 @@ export const AreaSection: React.FC<AreaSectionProps> = ({
   getDogsInPosition, 
   handleDragOver, 
   handleDrop,
-  // DropZone/DogCard props
-  getStaffById,
-  showAlerts,
-  longStayThresholdMs,
   handleDragStart,
   setSelectedDog
 }) => {
@@ -54,10 +46,6 @@ export const AreaSection: React.FC<AreaSectionProps> = ({
               dogsInPosition={getDogsInPosition(area, i + 1)}
               handleDragOver={handleDragOver}
               handleDrop={handleDrop}
-              // Pass down props
-              getStaffById={getStaffById}
-              showAlerts={showAlerts}
-              longStayThresholdMs={longStayThresholdMs}
               handleDragStart={handleDragStart}
               setSelectedDog={setSelectedDog}
             />

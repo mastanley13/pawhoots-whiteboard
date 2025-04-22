@@ -31,6 +31,8 @@ interface SearchFilterBarProps {
   setSelectedGhlPetId: (id: string | null) => void; // Function to set the selected pet ID
   ghlPetNameFieldKey: string;
   isFetchingGhlPets: boolean; // To show loading indicator
+  // New prop for importing a pet
+  onImportGhlPet: (pet: GhlPetRecord) => void;
 }
 
 export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({ 
@@ -48,7 +50,9 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
   selectedGhlPetId,
   setSelectedGhlPetId,
   ghlPetNameFieldKey,
-  isFetchingGhlPets
+  isFetchingGhlPets,
+  // New prop
+  onImportGhlPet
 }) => {
 
   // Extract the short field name (e.g., "name" from "custom_objects.pets.name")
@@ -61,6 +65,10 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
                     `Pet ID: ${pet.id}`;
     setGhlSearchQuery(petName); // Update input to show selected name
     setSelectedGhlPetId(pet.id); // Set the selected ID for filtering
+    
+    // Import the pet to create a dog card
+    onImportGhlPet(pet);
+    
     // Suggestions will automatically hide because EmployeeResourcesPage will clear ghlPets on query change 
     // or when query length < 3 after selection.
   };
@@ -69,11 +77,10 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
 
   return (
     <div className="mb-6 p-4 bg-white rounded-xl shadow-md">
-      <h3 className="text-xl font-bold text-[#005596] mb-4">Search & Filter</h3>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <h3 className="text-xl font-bold text-[#005596] mb-4">Search Pet</h3>
+      <div>
         {/* GHL Pet Search Input */}
         <div className="relative"> {/* Added relative positioning for suggestions */}
-          <label htmlFor="ghlPetSearch" className="block text-sm font-medium text-gray-700 mb-1">Search GHL Pet</label>
           <input 
             id="ghlPetSearch"
             type="text"
@@ -110,129 +117,6 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
               ))}
             </div>
           )}
-        </div>
-        <div>
-          <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">Filter by Location</label>
-          <select 
-            id="location"
-            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-            value={locationFilter}
-            onChange={e => setLocationFilter(e.target.value)}
-          >
-            <option value="">All Locations</option>
-            <option value="yard1">Yard 1</option>
-            <option value="yard2">Yard 2</option>
-            <option value="lobby">Lobby</option>
-            <option value="smallDogSuite">Small Dog Suite</option>
-            <option value="training">Training</option>
-            <option value="runs">Runs</option>
-            <option value="chucksAlley">Chuck's Alley</option>
-            <option value="nalasDen">Nala's Den</option>
-            <option value="trinsTown">Trin's Town</option>
-            <option value="available">Available (Pool)</option>
-          </select>
-        </div>
-        <div>
-          <label htmlFor="trait" className="block text-sm font-medium text-gray-700 mb-1">Filter by Trait</label>
-          <select 
-            id="trait"
-            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-            value={traitFilter}
-            onChange={e => setTraitFilter(e.target.value)}
-          >
-            <option value="">All Traits</option>
-            <option value="jumper">Jumper</option>
-            <option value="vocal">Vocal</option>
-            <option value="protective">Protective</option>
-            <option value="food-motivated">Food Motivated</option>
-            <option value="energetic">Energetic</option>
-            <option value="gentle">Gentle</option>
-            <option value="friendly">Friendly</option>
-            <option value="high-energy">High Energy</option>
-            <option value="calm">Calm</option>
-            <option value="good-with-kids">Good with Kids</option>
-            <option value="well-trained">Well Trained</option>
-            <option value="needs-training">Needs Training</option>
-            <option value="cat-friendly">Cat Friendly</option>
-            <option value="separation-anxiety">Separation Anxiety</option>
-            <option value="trainable">Trainable</option>
-            <option value="hypoallergenic">Hypoallergenic</option>
-          </select>
-        </div>
-        <div>
-          <label htmlFor="staff" className="block text-sm font-medium text-gray-700 mb-1">Filter by Staff</label>
-          <select 
-            id="staff"
-            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-            value={selectedStaff || ''}
-            onChange={e => setSelectedStaff(e.target.value || null)}
-          >
-            <option value="">All Staff</option>
-            <option value="unassigned">Unassigned</option>
-            {staff.map(staffMember => (
-              <option key={staffMember.id} value={staffMember.id}>
-                {staffMember.avatar} {staffMember.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-      
-      <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-200">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="show-alerts"
-              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              checked={showAlerts}
-              onChange={e => setShowAlerts(e.target.checked)}
-            />
-            <label htmlFor="show-alerts" className="ml-2 text-sm text-gray-700">
-              Show Long Stay Alerts
-            </label>
-          </div>
-          
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="show-scheduler"
-              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              checked={showScheduler}
-              onChange={e => setShowScheduler(e.target.checked)}
-            />
-            <label htmlFor="show-scheduler" className="ml-2 text-sm text-gray-700">
-              Show Scheduler
-            </label>
-          </div>
-          
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="show-import"
-              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              checked={showImport}
-              onChange={e => setShowImport(e.target.checked)}
-            />
-            <label htmlFor="show-import" className="ml-2 text-sm text-gray-700">
-              Show GoHighLevel Import
-            </label>
-          </div>
-        </div>
-        
-        <div className="flex gap-2">
-          <button 
-            onClick={() => {
-              setLocationFilter('');
-              setTraitFilter('');
-              setSelectedStaff(null);
-              setSelectedGhlPetId(null);
-              setGhlSearchQuery(''); // Clear search input too
-            }}
-            className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm"
-          >
-            Clear Filters
-          </button>
         </div>
       </div>
     </div>

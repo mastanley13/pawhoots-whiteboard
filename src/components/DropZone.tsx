@@ -8,10 +8,6 @@ interface DropZoneProps {
   dogsInPosition: Dog[];
   handleDragOver: (e: React.DragEvent) => void;
   handleDrop: (e: React.DragEvent, area: LocationArea, position: number) => void;
-  // Props needed by DogCard
-  getStaffById: (staffId: string | null) => any; // Use specific type if available
-  showAlerts: boolean;
-  longStayThresholdMs: number;
   handleDragStart: (e: React.DragEvent, dogId: string) => void;
   setSelectedDog: (dog: Dog | null) => void;
 }
@@ -22,10 +18,6 @@ export const DropZone: React.FC<DropZoneProps> = ({
   dogsInPosition, 
   handleDragOver, 
   handleDrop, 
-  // DogCard props
-  getStaffById,
-  showAlerts,
-  longStayThresholdMs,
   handleDragStart,
   setSelectedDog
 }) => {
@@ -39,9 +31,6 @@ export const DropZone: React.FC<DropZoneProps> = ({
         <DogCard 
           key={dog.id} 
           dog={dog} 
-          getStaffById={getStaffById}
-          showAlerts={showAlerts}
-          longStayThresholdMs={longStayThresholdMs}
           onDragStart={handleDragStart}
           onViewDetails={setSelectedDog}
         />

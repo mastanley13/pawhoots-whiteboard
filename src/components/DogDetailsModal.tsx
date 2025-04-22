@@ -1,30 +1,75 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dog, Staff, LocationArea } from '../types/types';
 import { formatTimeElapsed } from "../utils";
 import { ScheduleMoveModal } from './ScheduleMoveModal';
+import { getPetOwnerContactDetails } from '../services/api';
 
 interface DogDetailsModalProps {
   dog: Dog;
-  staff: Staff[];
   getStaffById: (staffId: string | null) => Staff | null;
-  assignStaffToDog: (dogId: string, staffId: string | null) => void;
   scheduleMove: (dogId: string, targetArea: LocationArea, targetPosition: number | null, scheduledTime: Date) => void;
   deleteScheduledMove: (dogId: string, moveId: string) => void;
   onClose: () => void;
 }
 
+// Interface for owner contact details
+interface OwnerContact {
+  id: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  companyName?: string;
+  locationId?: string;
+  customFields?: Array<{
+    id: string;
+    value: string;
+  }>;
+  // Add additional fields that might be in the GHL response
+  address?: {
+    line1?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    country?: string;
+  };
+  tags?: string[];
+  source?: string;
+}
+
 export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({ 
   dog, 
-  staff,
   getStaffById,
-  assignStaffToDog,
   scheduleMove,
   deleteScheduledMove,
   onClose 
 }) => {
   const [activeTab, setActiveTab] = useState<'info' | 'history' | 'schedule'>('info');
   const [showScheduleMove, setShowScheduleMove] = useState(false);
-  const assignedStaffMember = getStaffById(dog.assignedStaff);
+  const [ownerContacts, setOwnerContacts] = useState<OwnerContact[]>([]);
+  const [isLoadingContacts, setIsLoadingContacts] = useState(false);
+
+  // Get the most recent yard and run assignments from location history
+  const getMostRecentLocation = (locationType: 'yard' | 'run'): string => {
+    if (!dog.locationHistory || dog.locationHistory.length === 0) {
+      return 'None';
+    }
+    
+    // Filter for yard or run locations and sort by timestamp (newest first)
+    const filteredHistory = [...dog.locationHistory]
+      .filter(entry => 
+        locationType === 'yard' 
+          ? entry.area === 'yard1' || entry.area === 'yard2'
+          : entry.area === 'runs' || entry.area === 'chucksAlley' || entry.area === 'nalasDen' || entry.area === 'trinsTown'
+      )
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    
+    // Return the area name if found, otherwise 'None'
+    return filteredHistory.length > 0 
+      ? (filteredHistory[0].area || 'None')
+      : 'None';
+  };
 
   const handleScheduleMove = (
     targetArea: LocationArea,
@@ -34,11 +79,56 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
     scheduleMove(dog.id, targetArea, targetPosition, scheduledTime);
   };
 
+  // Fetch owner contact details when the dog is selected
+  useEffect(() => {
+    const fetchOwnerContacts = async () => {
+      if (!dog.id) return;
+      
+      setIsLoadingContacts(true);
+      try {
+        console.log(`Fetching owner contacts for pet ID: ${dog.id}`);
+        const contacts = await getPetOwnerContactDetails(dog.id);
+        console.log(`Received ${contacts.length} owner contacts:`, contacts);
+        setOwnerContacts(contacts);
+      } catch (error) {
+        console.error('Error fetching owner contacts:', error);
+        setOwnerContacts([]);
+      } finally {
+        setIsLoadingContacts(false);
+      }
+    };
+    
+    fetchOwnerContacts();
+  }, [dog.id]);
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-[#005596]">{dog.name}</h2>
+          <div className="flex items-center">
+            {/* Pet Profile Image */}
+            {dog.profileImage ? (
+              <div className="mr-4 w-16 h-16 rounded-full overflow-hidden border-2 border-[#005596]">
+                <img 
+                  src={dog.profileImage} 
+                  alt={`${dog.name}'s profile`}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                  }}
+                />
+                <div className="hidden w-full h-full flex items-center justify-center text-3xl bg-gray-100">
+                  🐾
+                </div>
+              </div>
+            ) : (
+              <div className="mr-4 w-16 h-16 rounded-full overflow-hidden border-2 border-[#005596] bg-gray-100 flex items-center justify-center">
+                <span className="text-3xl">🐾</span>
+              </div>
+            )}
+            <h2 className="text-2xl font-bold text-[#005596]">{dog.name}</h2>
+          </div>
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-full"
@@ -83,41 +173,47 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
                   <p className="font-medium">{dog.breed}</p>
                 </div>
                 <div>
-                  <p className="text-gray-600">Status</p>
-                  <p className="font-medium capitalize">{dog.location.area || 'Available'}</p>
+                  <p className="text-gray-600">Animal Size</p>
+                  <p className="font-medium">{dog.animalSize || 'Not specified'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Hair Length</p>
+                  <p className="font-medium">{dog.hairLength || 'Not specified'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Hair Thickness</p>
+                  <p className="font-medium">{dog.hairThickness || 'Not specified'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Expected Grooming Time</p>
+                  <p className="font-medium">{dog.expectedGroomingTime || 'Not specified'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Training Session Balance</p>
+                  <p className="font-medium">{typeof dog.trainingSessionBalance !== 'undefined' ? dog.trainingSessionBalance : 'Not specified'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Previously Boarded</p>
+                  <p className="font-medium">{typeof dog.previouslyBoarded !== 'undefined' ? (dog.previouslyBoarded ? 'Yes' : 'No') : 'Not specified'}</p>
                 </div>
                 <div className="col-span-2">
                   <p className="text-gray-600">Last Updated</p>
                   <p className="font-medium">{dog.lastUpdated.toLocaleString()} ({formatTimeElapsed(dog.lastUpdated)})</p>
                 </div>
-                <div className="col-span-2">
-                  <p className="text-gray-600">Assigned Staff</p>
-                  {assignedStaffMember ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">{assignedStaffMember.avatar}</span>
-                      <div>
-                        <p className="font-medium">{assignedStaffMember.name}</p>
-                        <p className="text-xs text-gray-500">{assignedStaffMember.position}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="font-medium text-gray-500">Not assigned</p>
-                  )}
+                <div>
+                  <p className="text-gray-600">Most Recent Yard Assignment</p>
+                  <p className="font-medium">{getMostRecentLocation('yard')}</p>
                 </div>
-              </div>
-              <div className="mt-3 flex gap-2">
-                <select
-                  className="p-2 border border-gray-300 rounded-lg flex-1"
-                  value={dog.assignedStaff || ''}
-                  onChange={e => assignStaffToDog(dog.id, e.target.value || null)}
-                >
-                  <option value="">Not Assigned</option>
-                  {staff.map(staffMember => (
-                    <option key={staffMember.id} value={staffMember.id}>
-                      {staffMember.avatar} {staffMember.name} ({staffMember.position})
-                    </option>
-                  ))}
-                </select>
+                <div>
+                  <p className="text-gray-600">Most Recent Run Assignment</p>
+                  <p className="font-medium">{getMostRecentLocation('run')}</p>
+                </div>
+                {dog.specialNotes && (
+                  <div className="col-span-2">
+                    <p className="text-gray-600">Special Notes</p>
+                    <p className="font-medium">{dog.specialNotes}</p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -125,67 +221,118 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
             <div className="bg-gray-50 p-4 rounded-lg">
               <h3 className="font-bold text-[#005596] mb-2">Contact Information</h3>
               <div className="space-y-3">
+                {/* Primary Owner Information */}
                 <div>
-                  <p className="text-gray-600">Owner</p>
-                  <p className="font-medium">{dog.owner}</p>
-                  <p className="text-sm text-gray-500">{dog.ownerPhone}</p>
+                  <p className="text-gray-600">Primary Owner</p>
+                  <p className="font-medium">{dog.owner || 'Unknown'}</p>
+                  {dog.ownerPhone && <p className="text-sm text-gray-500">{dog.ownerPhone}</p>}
                 </div>
-                <div>
-                  <p className="text-gray-600">Emergency Contact</p>
-                  <p className="font-medium">{dog.emergencyContact}</p>
-                  <p className="text-sm text-gray-500">{dog.emergencyPhone}</p>
-                </div>
-                <div>
-                  <p className="text-gray-600">Veterinarian</p>
-                  <p className="font-medium">{dog.veterinarian}</p>
-                  <p className="text-sm text-gray-500">{dog.vetPhone}</p>
-                </div>
-              </div>
-            </div>
 
-            {/* Medical & Care */}
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="font-bold text-[#005596] mb-2">Medical & Care Information</h3>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-gray-600">Medications</p>
-                  {dog.medications && dog.medications.length > 0 ? (
-                    <ul className="list-disc list-inside">
-                      {dog.medications.map((med, index) => (
-                        <li key={index} className="font-medium">{med}</li>
+                {/* Pet Owner Associations Section */}
+                {isLoadingContacts ? (
+                  <div className="text-gray-500">Loading associated contacts...</div>
+                ) : ownerContacts.length > 0 ? (
+                  <div>
+                    <p className="text-gray-600 font-medium mt-2">Associated Contacts</p>
+                    <ul className="space-y-2 mt-1">
+                      {ownerContacts.map((contact) => (
+                        <li key={contact.id} className="border-l-2 border-blue-300 pl-2">
+                          <p className="font-medium">
+                            {contact.name || 
+                              `${contact.firstName || ''} ${contact.lastName || ''}`.trim() ||
+                              contact.companyName || 
+                              'Unnamed Contact'}
+                          </p>
+                          {contact.email && (
+                            <p className="text-sm text-gray-500">{contact.email}</p>
+                          )}
+                          {contact.phone && (
+                            <p className="text-sm text-gray-500">{contact.phone}</p>
+                          )}
+                          {/* Display address if available */}
+                          {contact.address?.line1 && (
+                            <p className="text-sm text-gray-500">
+                              {contact.address.line1}
+                              {contact.address.city && `, ${contact.address.city}`}
+                              {contact.address.state && `, ${contact.address.state}`}
+                              {contact.address.postalCode && ` ${contact.address.postalCode}`}
+                            </p>
+                          )}
+                        </li>
                       ))}
                     </ul>
-                  ) : (
-                    <p className="font-medium">No medications</p>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 italic">
+                    {dog.owner 
+                      ? "No additional associated contacts found" 
+                      : "No owner information available - check GoHighLevel for contact details"}
+                  </p>
+                )}
+
+                {/* Emergency Contact Info */}
+                {(dog.emergencyContact || dog.emergencyPhone) && (
+                  <div>
+                    <p className="text-gray-600">Emergency Contact</p>
+                    <p className="font-medium">{dog.emergencyContact || 'Name not specified'}</p>
+                    {dog.emergencyPhone && <p className="text-sm text-gray-500">{dog.emergencyPhone}</p>}
+                  </div>
+                )}
+
+                {/* Veterinarian Info */}
+                {(dog.veterinarian || dog.vetPhone) && (
+                  <div>
+                    <p className="text-gray-600">Veterinarian</p>
+                    <p className="font-medium">{dog.veterinarian || 'Name not specified'}</p>
+                    {dog.vetPhone && <p className="text-sm text-gray-500">{dog.vetPhone}</p>}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Vaccination Status */}
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h3 className="font-bold text-[#005596] mb-2">Vaccination Status</h3>
+              <div className="space-y-3">
+                {/* Rabies Vaccination */}
                 <div>
-                  <p className="text-gray-600">Feeding Schedule</p>
-                  <p className="font-medium">{dog.feedingSchedule}</p>
+                  <p className="text-gray-600">Rabies</p>
+                  <p className="font-medium">
+                    {dog.rabiesVaccination ? 
+                      `Vaccinated (Expires: ${new Date(dog.rabiesVaccination).toLocaleDateString()})` : 
+                      'Not on file'}
+                  </p>
+                </div>
+
+                {/* DHPP Vaccination */}
+                <div>
+                  <p className="text-gray-600">DHPP</p>
+                  <p className="font-medium">
+                    {dog.dhppVaccination ? 
+                      `Vaccinated (Expires: ${new Date(dog.dhppVaccination).toLocaleDateString()})` : 
+                      'Not on file'}
+                  </p>
+                </div>
+
+                {/* Bordetella Vaccination */}
+                <div>
+                  <p className="text-gray-600">Bordetella</p>
+                  <p className="font-medium">
+                    {dog.bordetellaVaccination ? 
+                      `Vaccinated (Expires: ${new Date(dog.bordetellaVaccination).toLocaleDateString()})` : 
+                      'Not on file'}
+                  </p>
                 </div>
               </div>
             </div>
 
-            {/* Behavioral Traits */}
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="font-bold text-[#005596] mb-2">Behavioral Traits</h3>
-              <div className="flex flex-wrap gap-2">
-                {dog.traits.map((trait, index) => (
-                  <span
-                    key={index}
-                    className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
-                  >
-                    {trait}
-                  </span>
-                ))}
+            {/* Notes - Removed since we now have Special Notes in Basic Info */}
+            {dog.notes && !dog.specialNotes && (
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="font-bold text-[#005596] mb-2">Additional Notes</h3>
+                <p className="font-medium">{dog.notes}</p>
               </div>
-            </div>
-
-            {/* Notes */}
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="font-bold text-[#005596] mb-2">Additional Notes</h3>
-              <p className="font-medium">{dog.notes || 'No additional notes'}</p>
-            </div>
+            )}
           </div>
         )}
 

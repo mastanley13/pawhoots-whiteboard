@@ -24,7 +24,8 @@ export const formatDate = (date: Date): string => {
 
 // Check if dog has been in location too long
 export const hasLongStay = (dog: Dog, longStayThresholdMs: number): boolean => {
-  if (!dog.location.area) return false; // Skip dogs in the pool
+  if (!dog.location.area) return false; // Skip dogs in the pool (keep this line to ensure dogs in the pool are not highlighted)
+  
   const stayDuration = new Date().getTime() - dog.lastUpdated.getTime();
   return stayDuration > longStayThresholdMs;
 };

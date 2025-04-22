@@ -7,10 +7,6 @@ interface BoardingRunsSectionProps {
   getDogsInPosition: (area: any, position: number) => Dog[];
   handleDragOver: (e: React.DragEvent) => void;
   handleDrop: (e: React.DragEvent, area: any, position: number) => void;
-  // Props needed by AreaSection/DropZone/DogCard
-  getStaffById: (staffId: string | null) => any;
-  showAlerts: boolean;
-  longStayThresholdMs: number;
   handleDragStart: (e: React.DragEvent, dogId: string) => void;
   setSelectedDog: (dog: Dog | null) => void;
 }
@@ -37,10 +33,6 @@ export const BoardingRunsSection: React.FC<BoardingRunsSectionProps> = (props) =
             getDogsInPosition={props.getDogsInPosition}
             handleDragOver={props.handleDragOver}
             handleDrop={props.handleDrop}
-            // Pass down other props
-            getStaffById={props.getStaffById}
-            showAlerts={props.showAlerts}
-            longStayThresholdMs={props.longStayThresholdMs}
             handleDragStart={props.handleDragStart}
             setSelectedDog={props.setSelectedDog}
           />

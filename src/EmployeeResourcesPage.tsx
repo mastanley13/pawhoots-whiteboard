@@ -1,22 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom'; // Added import for Link
-// Corrected import paths assuming flat src structure
-import { GHLContactSearch } from './components/GHLContactSearch'; // Should be correct now
-// Removed GHLBulkImport
-// import { GHLBulkImport } from './components/GHLBulkImport';
 import { Dog, Staff, LocationHistoryEntry, ScheduledMove, LocationArea } from './types/types'; // Adjusting types path
 import { DogDetailsModal } from './components/DogDetailsModal';
 import { SearchFilterBar } from './components/SearchFilterBar';
-import { AlertsPanel } from './components/AlertsPanel';
 import { SchedulerPanel } from './components/SchedulerPanel';
 import { DogPool } from './components/DogPool';
 import { BoardingRunsSection } from './components/BoardingRunsSection';
 import { AreaSection } from './components/AreaSection';
-import { NavigationResources } from './components/NavigationResources';
-import { DogCard } from './components/DogCard'; // Added DogCard import
-import { DropZone } from './components/DropZone'; // Added DropZone import
-// Import the new search function
 import { searchCustomObjectRecords } from './services/api';
+import { GHLContactSearch } from './components/GHLContactSearch';
 
 // Define a type for the GHL Pet record structure (adjust based on actual GHL response)
 interface GhlPetRecord {
@@ -24,6 +15,27 @@ interface GhlPetRecord {
   properties: {
     [key: string]: any; // Use a more specific type if known, e.g., 'custom_objects.pets.pet' for name
   };
+  // Media-related fields that might be in the response
+  profileImage?: string;
+  avatarUrl?: string;
+  profileUrl?: string;
+  imageUrl?: string;
+  photoUrl?: string;
+  // Custom fields array
+  customFields?: Array<{
+    id?: string;
+    name?: string;
+    value?: string;
+    [key: string]: any;
+  }>;
+  // Attachments array
+  attachments?: Array<{
+    id?: string;
+    url?: string;
+    name?: string;
+    mimeType?: string;
+    [key: string]: any;
+  }>;
   // Add other relevant fields from GHL if needed
 }
 
@@ -45,7 +57,7 @@ const areaConfigs = {
 
 // type PlayAreaKey = keyof typeof areaConfigs; // Keep if needed
 
-type NavSection = 'main' | 'portal' | 'external'; // Defined type for nav section
+// type NavSection = 'main' | 'portal' | 'external'; // Defined type for nav section
 
 // --- Helper Hook for Debounce ---
 function useDebounce<T>(value: T, delay: number): T {
@@ -67,7 +79,7 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export function EmployeeResourcesPage() {
   // --- State Definitions ---
-  const [activeNavSection, setActiveNavSection] = useState<NavSection | null>(null); // Use NavSection type, default to null
+  // const [activeNavSection, setActiveNavSection] = useState<NavSection | null>(null); // Use NavSection type, default to null
   const [selectedDog, setSelectedDog] = useState<Dog | null>(null);
   const [locationFilter, setLocationFilter] = useState<string>('');
   const [traitFilter, setTraitFilter] = useState<string>('');
@@ -75,8 +87,8 @@ export function EmployeeResourcesPage() {
   const [showScheduler, setShowScheduler] = useState<boolean>(false);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null); // Renamed for clarity, holds ID
   const [showImport, setShowImport] = useState<boolean>(false);
-  const [dogs, setDogs] = useState<Dog[]>([]);
-  const [staff, setStaff] = useState<Staff[]>([]); // Placeholder if needed later
+  const [dogs, setDogs] = useState<Dog[]>([]); // Empty array, no mock dogs
+  const [staff] = useState<Staff[]>([]); // Empty array, no mock staff
 
   // --- GHL State ---
   const [ghlSearchQuery, setGhlSearchQuery] = useState<string>(''); // Input field value
@@ -89,12 +101,9 @@ export function EmployeeResourcesPage() {
 
   // --- Constants ---
   // Use environment variables for sensitive data like API keys and IDs
-  const GHL_API_KEY = import.meta.env.VITE_GOHIGHLEVEL_PRIVATE_INTEGRATION_KEY || "YOUR_GHL_API_KEY"; // Used by api.ts implicitly
   const GHL_LOCATION_ID = import.meta.env.VITE_GHL_LOCATION_ID || "YOUR_GHL_LOCATION_ID"; // Replace with your location ID or env var
   const GHL_PET_OBJECT_KEY = "custom_objects.pets";
   const GHL_PET_NAME_FIELD_KEY = "custom_objects.pets.name"; // Corrected the field key based on petFields data
-
-  const longStayThresholdMs = 60 * 60 * 1000; // 1 hour
 
   // --- Helper Functions (defined in parent scope) ---
   // Restore getStaffById if staff data is available
@@ -104,65 +113,23 @@ export function EmployeeResourcesPage() {
     return staff.find(s => s.id === staffId) || null;
   }, [staff]);
 
-  // Helper function for formatting time elapsed (Keep if used by AlertsPanel/SchedulerPanel directly)
-  const formatTimeElapsed = (date: Date) => {
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} min ago`;
-
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours} hr ago`;
-
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays} day ago`;
-  };
-
-  // Format date for display (Keep if used by SchedulerPanel directly)
-  const formatDate = useCallback((date: Date | string) => { // Allow string for initial load
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
-    return dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }, []);
-
   // --- Effects ---
-  // Restore useEffect for loading data
+  // Remove localStorage loading and completely clear any existing dogs
   useEffect(() => {
-    const savedDogs = localStorage.getItem('dogWhiteboardData');
-    if (savedDogs) {
-      try {
-        const parsedDogs = JSON.parse(savedDogs);
-        // Ensure dates are properly hydrated
-        const dogsWithDates = parsedDogs.map((dog: any): Dog => ({
-          ...dog,
-          lastUpdated: dog.lastUpdated ? new Date(dog.lastUpdated) : new Date(),
-          locationHistory: (dog.locationHistory || []).map((entry: any): LocationHistoryEntry => ({
-            ...entry,
-            timestamp: entry.timestamp ? new Date(entry.timestamp) : new Date()
-          })),
-          scheduledMoves: (dog.scheduledMoves || []).map((move: any): ScheduledMove => ({
-            ...move,
-            scheduledTime: move.scheduledTime ? new Date(move.scheduledTime) : new Date()
-          }))
-        }));
-        setDogs(dogsWithDates);
-      } catch (error) {
-        console.error("Failed to parse dogs from localStorage:", error);
-        // Optionally clear invalid data: localStorage.removeItem('dogWhiteboardData');
-      }
-    }
-    // Placeholder for fetching staff data
+    // Clear any existing dog data in localStorage
+    localStorage.removeItem('dogWhiteboardData');
+    
+    // Explicitly reset dogs state to an empty array to override any existing data
+    setDogs([]);
+    
+    // Placeholder for fetching staff data if needed in the future
     // fetchStaffData().then(setStaff);
   }, []); // Empty dependency array ensures this runs only once on mount
 
-  // Restore useEffect for saving data
+  // Remove localStorage saving
   useEffect(() => {
-    // Avoid saving empty array on initial load if localStorage was empty
-    if (dogs.length > 0) {
-        localStorage.setItem('dogWhiteboardData', JSON.stringify(dogs));
-    }
-  }, [dogs]); // Run whenever 'dogs' state changes
+    // Do not save dogs data to localStorage
+  }, [dogs]); // Keep the dependency to avoid lint errors
 
   // Restore useEffect for processing scheduled moves
   useEffect(() => {
@@ -237,6 +204,11 @@ export function EmployeeResourcesPage() {
         return;
       }
 
+      // Clear previous selection when initiating a new search
+      if (selectedGhlPetId) {
+        setSelectedGhlPetId(null);
+      }
+
       setIsFetchingGhlPets(true);
       setGhlPets([]); // Clear previous suggestions immediately
 
@@ -276,14 +248,10 @@ export function EmployeeResourcesPage() {
 
     fetchGhlPets();
   // Depend on the *debounced* query, Location ID, Object Key
-  }, [debouncedGhlSearchQuery, GHL_LOCATION_ID, GHL_PET_OBJECT_KEY]);
+  }, [debouncedGhlSearchQuery, GHL_LOCATION_ID, GHL_PET_OBJECT_KEY, selectedGhlPetId]);
 
   // --- State Modifying Callbacks ---
-  const assignStaffToDog = useCallback((dogId: string, staffId: string | null) => {
-    setDogs(prev => prev.map(dog => dog.id === dogId ? { ...dog, assignedStaff: staffId } : dog));
-    // Note: This relies on dog object having 'assignedStaff' property.
-    // If Staff data is fetched/managed elsewhere, update this logic.
-  }, []);
+  // Removed assignStaffToDog function
 
   // Restore scheduleMove callback
   const scheduleMove = useCallback((dogId: string, targetArea: LocationArea | null, targetPosition: number | null, scheduledTime: Date) => {
@@ -312,7 +280,7 @@ export function EmployeeResourcesPage() {
     }));
   }, []);
 
-  // Restore handleImportDog callback
+  // Restore handleImportDog callback with GHL ID preservation
   const handleImportDog = useCallback((dogData: Partial<Dog> & { id: string }) => {
     setDogs(prev => {
       const exists = prev.some(dog => dog.id === dogData.id);
@@ -328,7 +296,8 @@ export function EmployeeResourcesPage() {
               lastUpdated: dog.lastUpdated,
               locationHistory: dog.locationHistory || [],
               scheduledMoves: dog.scheduledMoves || [],
-              assignedStaff: dog.assignedStaff // Preserve assigned staff unless explicitly changed by import
+              assignedStaff: dog.assignedStaff, // Preserve assigned staff unless explicitly changed by import
+              id: dogData.id // Ensure we preserve the GHL ID for association lookup
             };
           }
           return dog;
@@ -357,52 +326,174 @@ export function EmployeeResourcesPage() {
           notes: undefined,
           // Spread imported data over defaults
           ...dogData,
-          id: dogData.id // Ensure ID is set
+          id: dogData.id // Ensure ID is set to the GHL pet ID for association lookup
         };
         return [...prev, newDog];
       }
     });
   }, []);
 
-  // Restore handleImportDogs callback
-  const handleImportDogs = useCallback((dogsData: (Partial<Dog> & { id: string })[]) => {
-    if (!dogsData || dogsData.length === 0) return;
-    setDogs(prev => {
-        const dogMap = new Map(prev.map(dog => [dog.id, dog]));
-        dogsData.forEach(importedDogData => {
-            if (!importedDogData.id) {
-                console.warn("Skipping import: dog data missing ID", importedDogData);
-                return; // Skip if ID is missing
-            }
-            const existingDog = dogMap.get(importedDogData.id);
-            if (existingDog) {
-                // Update existing dog
-                dogMap.set(importedDogData.id, {
-                    ...existingDog,
-                    ...importedDogData,
-                    // Preserve dynamic state
-                    location: existingDog.location,
-                    lastUpdated: existingDog.lastUpdated,
-                    locationHistory: existingDog.locationHistory || [],
-                    scheduledMoves: existingDog.scheduledMoves || [],
-                    assignedStaff: existingDog.assignedStaff
-                });
-            } else {
-                // Add new dog with defaults
-                const newDog: Dog = {
-                    name: 'Unknown Name', breed: 'Unknown Breed', color: null, traits: [], assignedStaff: null,
-                    location: { area: null, position: null }, lastUpdated: new Date(), locationHistory: [], scheduledMoves: [],
-                    owner: undefined, ownerPhone: undefined, emergencyContact: undefined, emergencyPhone: undefined,
-                    veterinarian: undefined, vetPhone: undefined, medications: [], feedingSchedule: undefined, notes: undefined,
-                    ...importedDogData,
-                    id: importedDogData.id
-                };
-                dogMap.set(newDog.id, newDog);
-            }
-        });
-        return Array.from(dogMap.values());
-    });
-  }, []);
+  // Handle import of a GHL Pet
+  const handleImportGhlPet = useCallback(async (pet: GhlPetRecord) => {
+    if (!pet || !pet.id) return;
+    
+    // Construct a new dog record from the pet record using the GHL pet's ID directly
+    const getProperty = (fieldName: string) => {
+      const shortName = fieldName.split('.').pop() || '';
+      return pet.properties[shortName] || pet.properties[fieldName] || null;
+    };
+    
+    // Extract profile image URL from the pet record
+    const extractProfileImage = () => {
+      // Try different possible property names for the profile image
+      const profileImageFilename = 
+        getProperty('custom_objects.pets.profile_picture') || 
+        getProperty('profile_picture') ||
+        getProperty('custom_objects.pets.profileImage') || 
+        getProperty('custom_objects.pets.profile_image') || 
+        getProperty('custom_objects.pets.image') || 
+        getProperty('custom_objects.pets.photo');
+      
+      console.log(`Found raw profile image data: ${profileImageFilename}`);
+      
+      // If we have a filename, construct proper URL
+      if (profileImageFilename && typeof profileImageFilename === 'string') {
+        // If it's already a full URL (starts with http or https)
+        if (profileImageFilename.startsWith('http')) {
+          return profileImageFilename;
+        }
+        
+        // If it's just a filename, construct the URL to the image
+        // You may need to adjust this URL pattern based on your actual image storage location
+        const baseUrl = 'https://storage.googleapis.com/msgsndr/pet-images/';
+        return `${baseUrl}${encodeURIComponent(profileImageFilename)}`;
+      }
+      
+      // Check for avatarUrl or profileUrl in the record itself
+      const recordImage = pet.profileImage || pet.avatarUrl || pet.profileUrl || pet.imageUrl || pet.photoUrl;
+      if (recordImage) {
+        console.log(`Found profile image URL in record: ${recordImage}`);
+        return recordImage;
+      }
+      
+      // If no direct URL is found, try extracting from custom fields array if available
+      if (pet.customFields && Array.isArray(pet.customFields)) {
+        const imageField = pet.customFields.find((field: { name?: string; value?: string; [key: string]: any }) => 
+          field.name?.toLowerCase().includes('profile') || 
+          field.name?.toLowerCase().includes('image') || 
+          field.name?.toLowerCase().includes('photo') ||
+          field.name?.toLowerCase().includes('avatar')
+        );
+        
+        if (imageField?.value) {
+          console.log(`Found profile image URL in custom fields: ${imageField.value}`);
+          // If it's just a filename, construct proper URL
+          if (imageField.value.startsWith('http')) {
+            return imageField.value;
+          } else {
+            const baseUrl = 'https://storage.googleapis.com/msgsndr/pet-images/';
+            return `${baseUrl}${encodeURIComponent(imageField.value)}`;
+          }
+        }
+      }
+      
+      // If we still don't have an image, check for attachments
+      if (pet.attachments && Array.isArray(pet.attachments) && pet.attachments.length > 0) {
+        const imageAttachment = pet.attachments.find(attachment => 
+          attachment.mimeType?.startsWith('image/') || 
+          attachment.name?.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+        );
+        
+        if (imageAttachment?.url) {
+          console.log(`Found profile image URL in attachments: ${imageAttachment.url}`);
+          return imageAttachment.url;
+        }
+      }
+      
+      return null; // No image found
+    };
+    
+    // Get vaccination dates from properties
+    const rabiesDate = getProperty('custom_objects.pets.rabies_vaccination') || 
+                       getProperty('rabies_vaccination');
+    const dhppDate = getProperty('custom_objects.pets.dhpp_vaccination') || 
+                     getProperty('dhpp_vaccination');
+    const bordetellaDate = getProperty('custom_objects.pets.bordetella_vaccination') || 
+                           getProperty('bordetella_vaccination');
+    
+    // Determine overall vaccination status
+    const determineVaccinationStatus = () => {
+      const now = new Date();
+      
+      // Check if any vaccination dates are available
+      if (!rabiesDate && !dhppDate && !bordetellaDate) {
+        return 'Unknown';
+      }
+      
+      // Check if any vaccination is expired
+      const isExpired = (dateStr: string | null) => {
+        if (!dateStr) return false;
+        try {
+          const expDate = new Date(dateStr);
+          return expDate < now;
+        } catch (e) {
+          return false;
+        }
+      };
+      
+      if (isExpired(rabiesDate) || isExpired(dhppDate) || isExpired(bordetellaDate)) {
+        return 'Expired';
+      }
+      
+      // Check if all required vaccinations are present
+      if (rabiesDate && dhppDate && bordetellaDate) {
+        return 'Current';
+      }
+      
+      // Some vaccinations are missing
+      return 'Incomplete';
+    };
+    
+    // Get the profile image URL
+    const profileImage = extractProfileImage() || undefined;
+    console.log(`Final profile image URL for ${getProperty('custom_objects.pets.name')}: ${profileImage}`);
+    
+    // Create a basic dog from the GHL pet data
+    const newDog: Partial<Dog> & { id: string } = {
+      id: pet.id, // Use the GHL pet ID directly as the dog ID for association lookup
+      name: getProperty('custom_objects.pets.name') || 'Unnamed Pet',
+      breed: getProperty('custom_objects.pets.breed') || 'Unknown Breed',
+      color: getProperty('custom_objects.pets.animal_color') || 'blue', // Fallback to a default color
+      traits: [], // Default empty traits, can be enhanced if traits are stored in custom fields
+      animalSize: getProperty('custom_objects.pets.animal_size'),
+      hairLength: getProperty('custom_objects.pets.hair_length'),
+      hairThickness: getProperty('custom_objects.pets.hair_thickness'), 
+      expectedGroomingTime: getProperty('custom_objects.pets.expected_grooming_time'),
+      specialNotes: getProperty('custom_objects.pets.special_notes') || getProperty('custom_objects.pets.notes'),
+      // Vaccination fields
+      rabiesVaccination: rabiesDate,
+      dhppVaccination: dhppDate,
+      bordetellaVaccination: bordetellaDate,
+      vaccinationStatus: determineVaccinationStatus(),
+      // Profile image
+      profileImage: profileImage
+    };
+    
+    console.log(`Importing pet with data:`, newDog);
+    
+    // Import the new dog
+    handleImportDog(newDog);
+    
+    // Close the import panel and select the newly imported dog
+    setShowImport(false);
+    setSelectedGhlPetId(pet.id);
+    
+    // Find the dog in the dogs array and set it as selected
+    const importedDog = dogs.find(d => d.id === pet.id);
+    if (importedDog) {
+      setSelectedDog(importedDog);
+    }
+  }, [handleImportDog, dogs]);
 
   // --- Drag and Drop Handlers ---
   const handleDragStart = useCallback((e: React.DragEvent, dogId: string) => {
@@ -480,24 +571,6 @@ export function EmployeeResourcesPage() {
     );
   }, [dogs]); // Added dogs dependency
 
-  // --- Alert Logic ---
-   const getStayAlerts = useCallback((): Dog[] => { // Explicit return type
-     const now = new Date().getTime();
-     return dogs.filter(dog =>
-       dog.location.area && // Only alert for dogs in a specific area
-       (now - new Date(dog.lastUpdated).getTime() > longStayThresholdMs)
-     );
-   }, [dogs, longStayThresholdMs]);
-
-   const stayAlerts = useMemo(() => getStayAlerts(), [getStayAlerts]); // Memoize alerts
-
-  // --- Navigation Logic ---
-  const toggleNavSection = useCallback((section: NavSection) => {
-    setActiveNavSection(prev => prev === section ? null : section);
-  }, []);
-
-  // --- Rendering Functions ---
-
   // --- Main Render ---
   return (
     <div className="min-h-screen bg-gray-50">
@@ -555,6 +628,7 @@ export function EmployeeResourcesPage() {
                setSelectedGhlPetId={setSelectedGhlPetId} // To set selection
                ghlPetNameFieldKey={GHL_PET_NAME_FIELD_KEY} 
                isFetchingGhlPets={isFetchingGhlPets}
+               onImportGhlPet={handleImportGhlPet} // Add new prop
             />
 
              {/* GoHighLevel Import Section - Removed GHLBulkImport */}
@@ -566,15 +640,7 @@ export function EmployeeResourcesPage() {
                </div>
              )}
 
-            {/* Alerts Panel - Adjust props */}
-            {showAlerts && dogs.length > 0 && (
-               <AlertsPanel
-                 dogs={dogs}
-                 showAlerts={showAlerts}
-                 setSelectedDog={setSelectedDog}
-                 longStayThresholdMs={longStayThresholdMs}
-               />
-            )}
+            {/* Alerts Panel removed */}
 
             {/* Scheduler Panel - Adjust props */}
             {showScheduler && (
@@ -593,9 +659,6 @@ export function EmployeeResourcesPage() {
                handleDragOver={handleDragOver}
                setSelectedDog={setSelectedDog}
                handleDragStart={handleDragStart}
-               getStaffById={getStaffById}
-               showAlerts={showAlerts}
-               longStayThresholdMs={longStayThresholdMs}
              />
 
             {/* Boarding Runs - Adjust props */}
@@ -606,9 +669,6 @@ export function EmployeeResourcesPage() {
                handleDragOver={handleDragOver}
                setSelectedDog={setSelectedDog}
                handleDragStart={handleDragStart}
-               getStaffById={getStaffById}
-               showAlerts={showAlerts}
-               longStayThresholdMs={longStayThresholdMs}
             />
 
             {/* Play Areas Grid - Adjust props */}
@@ -627,9 +687,6 @@ export function EmployeeResourcesPage() {
                      handleDragOver={handleDragOver}
                      setSelectedDog={setSelectedDog}
                      handleDragStart={handleDragStart}
-                     getStaffById={getStaffById}
-                     showAlerts={showAlerts}
-                     longStayThresholdMs={longStayThresholdMs}
                    />
                ))}
              </div>
@@ -637,13 +694,7 @@ export function EmployeeResourcesPage() {
          </div>
        </section>
 
-      {/* Navigation Menu Section - Adjust props */}
-      <section className="py-16 bg-gray-50">
-         <NavigationResources
-           activeNavSection={activeNavSection}
-           toggleNavSection={toggleNavSection}
-         />
-      </section>
+      {/* Navigation Menu Section removed */}
 
       {/* Dog Details Modal - Adjust props */}
       {selectedDog && (
@@ -651,9 +702,7 @@ export function EmployeeResourcesPage() {
            dog={selectedDog}
            onClose={() => setSelectedDog(null)}
            scheduleMove={scheduleMove}
-           assignStaffToDog={assignStaffToDog}
            deleteScheduledMove={deleteScheduledMove}
-           staff={staff}
            getStaffById={getStaffById}
         />
       )}

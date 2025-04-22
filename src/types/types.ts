@@ -39,6 +39,20 @@ export interface Dog {
   medications?: string[];
   feedingSchedule?: string;
   notes?: string;
+  // Additional pet fields
+  animalSize?: string;
+  hairLength?: string;
+  hairThickness?: string;
+  expectedGroomingTime?: string;
+  specialNotes?: string;
+  trainingSessionBalance?: number;
+  previouslyBoarded?: boolean;
+  profileImage?: string; // URL to the pet's profile image
+  // Vaccination-related fields
+  rabiesVaccination?: string | Date | null;
+  dhppVaccination?: string | Date | null;
+  bordetellaVaccination?: string | Date | null;
+  vaccinationStatus?: 'Current' | 'Expired' | 'Incomplete' | 'Unknown' | null;
 }
 
 // Staff interface

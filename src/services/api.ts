@@ -162,4 +162,151 @@ export const searchCustomObjectRecords = async (
   }
 };
 
+// Get pet owner associations by pet ID
+export const getPetOwnerAssociations = async (petId: string, locationId?: string) => {
+  try {
+    // Pet owner association ID from the associations file
+    const petOwnerAssociationId = "67ec210e35f5b25402d79de4";
+    const loc = locationId || import.meta.env.VITE_GHL_LOCATION_ID;
+    
+    // Try a different API endpoint format
+    // First, check if this is the right object type
+    console.log(`Attempting to get associations for pet ID ${petId}`);
+    
+    // Option 1: Try the direct association lookup
+    try {
+      const response = await api.get(`/objects/custom_objects.pets/records/${petId}/associations/${petOwnerAssociationId}/records`, {
+        params: {
+          locationId: loc,
+          limit: 100,
+          skip: 0
+        }
+      });
+      
+      console.log("Option 1 - Found associations:", response.data);
+      const relations = response.data.records || [];
+      if (relations.length > 0) {
+        return relations;
+      }
+    } catch (err: any) {
+      console.log("Option 1 failed:", err.message);
+    }
+    
+    // Option 2: Try the generic relations endpoint
+    try {
+      const response = await api.get(`/associations/records/${petId}/relations`, {
+        params: {
+          locationId: loc,
+          limit: 100,
+          skip: 0,
+          associationId: petOwnerAssociationId
+        }
+      });
+      
+      console.log("Option 2 - Found associations:", response.data);
+      return response.data.records || response.data.relations || [];
+    } catch (err: any) {
+      console.log("Option 2 failed:", err.message);
+    }
+    
+    // Option 3: Try the reverse lookup from contacts
+    try {
+      const response = await api.post(`/contacts/search`, {
+        locationId: loc,
+        limit: 100,
+        filters: [
+          {
+            field: "customFieldValues.petId",
+            operator: "=",
+            value: petId
+          }
+        ]
+      });
+      
+      console.log("Option 3 - Found contacts:", response.data);
+      return response.data.contacts || [];
+    } catch (err: any) {
+      console.log("Option 3 failed:", err.message);
+    }
+    
+    // If none of the above work, return empty array
+    console.log("All association lookup attempts failed");
+    return [];
+  } catch (error: any) {
+    console.error(`Error getting pet owner associations for pet ID ${petId}:`, error);
+    // Log more details about the error for debugging
+    if (error.response) {
+      console.error('Response data:', error.response.data);
+      console.error('Response status:', error.response.status);
+    }
+    return []; // Return empty array instead of throwing
+  }
+};
+
+// Get contact details for pet associations
+export const getPetOwnerContactDetails = async (petId: string, locationId?: string) => {
+  try {
+    // First get the associations
+    const associations = await getPetOwnerAssociations(petId, locationId);
+    
+    console.log("Raw association data:", associations);
+    
+    // If the associations already contain contact data, just return them
+    if (associations.length > 0 && (associations[0].email || associations[0].phone || associations[0].firstName)) {
+      console.log("Using associations directly as contacts");
+      return associations;
+    }
+    
+    // Extract contact IDs from associations - adjust key names based on actual API response
+    const contactIds = associations.map((assoc: any) => 
+      assoc.recordId || assoc.associatedRecordId || assoc.id
+    ).filter(Boolean);
+    
+    console.log("Extracted contact IDs:", contactIds);
+    
+    // If we have contact IDs, fetch their details
+    if (contactIds.length > 0) {
+      // Fetch contact details for each ID
+      const contactPromises = contactIds.map((contactId: string) => 
+        getContactById(contactId).catch(err => {
+          console.error(`Error fetching contact ${contactId}:`, err);
+          return null; // Return null for failed requests
+        })
+      );
+      
+      // Return all the contact details, filtering out failed requests
+      const contacts = await Promise.all(contactPromises);
+      return contacts.filter(Boolean);
+    }
+    
+    // As a fallback, try to get the owner contact directly if we have an ownerID
+    try {
+      // Look for the pet record to see if it has an owner field
+      const petResponse = await api.get(`/objects/custom_objects.pets/records/${petId}`, {
+        params: {
+          locationId: locationId || import.meta.env.VITE_GHL_LOCATION_ID
+        }
+      });
+      
+      console.log("Pet record:", petResponse.data);
+      const pet = petResponse.data;
+      
+      // Check if the pet has an owner reference field
+      const ownerId = pet.contactId || pet.properties?.owner_id || pet.properties?.contactId;
+      if (ownerId) {
+        console.log(`Found owner ID ${ownerId} in pet record`);
+        const ownerContact = await getContactById(ownerId);
+        return [ownerContact].filter(Boolean);
+      }
+    } catch (err) {
+      console.error("Failed to get pet record:", err);
+    }
+    
+    return [];
+  } catch (error: any) {
+    console.error(`Error getting pet owner contact details for pet ID ${petId}:`, error);
+    return []; // Return empty array instead of throwing
+  }
+};
+
 export default api; 
