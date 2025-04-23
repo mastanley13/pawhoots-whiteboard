@@ -1,4 +1,4 @@
-import React from 'react';
+// import React from 'react';
 import { Dog } from '../types/types';
 
 // Helper function for formatting time elapsed

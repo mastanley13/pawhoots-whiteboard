@@ -1,5 +1,5 @@
 import React from 'react';
-import { Dog, Staff } from '../types/types';
+import { Dog } from '../types/types';
 import { getDogCardStyle, formatDate } from '../utils';
 
 interface DogCardProps {
