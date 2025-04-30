@@ -6,12 +6,17 @@ interface DogCardProps {
   dog: Dog;
   onDragStart: (e: React.DragEvent, dogId: string) => void;
   onViewDetails: (dog: Dog) => void;
+  // Mobile move support
+  onMobileSelect?: (dogId: string) => void;
+  isSelectedForMove?: boolean;
 }
 
 export const DogCard: React.FC<DogCardProps> = ({
   dog,
   onDragStart,
-  onViewDetails
+  onViewDetails,
+  onMobileSelect,
+  isSelectedForMove
 }) => {
   const hasPendingMoves = dog.scheduledMoves.filter(move => !move.completed).length > 0;
 
@@ -22,14 +27,26 @@ export const DogCard: React.FC<DogCardProps> = ({
     e.currentTarget.nextElementSibling?.classList.remove('hidden'); // Show the fallback emoji
   };
 
+  const isTouchDevice = typeof window !== 'undefined' && window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+
+  const handleClick = () => {
+    if (isTouchDevice && onMobileSelect) {
+      onMobileSelect(dog.id);
+    }
+  };
+
   return (
     <div
       draggable
       onDragStart={(e) => onDragStart(e, dog.id)}
-      className={`${getDogCardStyle(dog.color)} p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-move relative flex flex-col`}
+      onClick={handleClick}
+      className={`w-full ${getDogCardStyle(dog.color)} p-3 md:p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-${isTouchDevice ? 'pointer' : 'move'} relative flex flex-col ${isSelectedForMove ? 'ring-2 ring-blue-500' : ''}`}
     >
       <button
-        onClick={() => onViewDetails(dog)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onViewDetails(dog);
+        }}
         className="absolute top-2 right-2 hover:bg-blue-100 text-blue-600 p-1 rounded-full flex items-center justify-center w-6 h-6 z-10"
         title="View Details"
       >
@@ -40,7 +57,7 @@ export const DogCard: React.FC<DogCardProps> = ({
       
       {/* Name and Breed with Profile Image */}
       <div className="flex items-center">
-        <div className="mr-2 flex-shrink-0 w-10 h-10 overflow-hidden relative">
+        <div className="mr-2 flex-shrink-0 w-8 h-8 md:w-10 md:h-10 overflow-hidden relative">
           {dog.profileImage ? (
             <>
               <img 
@@ -56,14 +73,14 @@ export const DogCard: React.FC<DogCardProps> = ({
           )}
         </div>
         <div>
-          <h3 className="text-blue-900 font-semibold">{dog.name}</h3>
-          <p className="text-gray-600 text-sm">{dog.breed}</p>
+          <h3 className="text-blue-900 font-semibold text-sm md:text-base">{dog.name}</h3>
+          <p className="text-gray-600 text-xs md:text-sm">{dog.breed}</p>
         </div>
       </div>
       
       {/* Scheduled Moves Indicator (optional) */}
       {hasPendingMoves && (
-        <div className="mt-2 text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded w-fit ml-auto">
+        <div className="mt-2 text-[10px] md:text-xs bg-purple-50 text-purple-700 px-2 py-0.5 md:px-2 md:py-1 rounded w-fit ml-auto">
           <span className="mr-1">🗓</span>
           <span>
             {formatDate(dog.scheduledMoves.filter(move => !move.completed)[0].scheduledTime)}

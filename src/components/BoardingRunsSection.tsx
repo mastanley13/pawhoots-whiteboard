@@ -9,6 +9,10 @@ interface BoardingRunsSectionProps {
   handleDrop: (e: React.DragEvent, area: any, position: number) => void;
   handleDragStart: (e: React.DragEvent, dogId: string) => void;
   setSelectedDog: (dog: Dog | null) => void;
+  // mobile props
+  mobileMoveDogId?: string | null;
+  setMobileMoveDogId?: (id: string | null) => void;
+  handleMobileDrop?: (area: any, position: number | null) => void;
 }
 
 export const BoardingRunsSection: React.FC<BoardingRunsSectionProps> = (props) => {
@@ -22,7 +26,7 @@ export const BoardingRunsSection: React.FC<BoardingRunsSectionProps> = (props) =
   return (
     <div className="bg-gray-50 rounded-xl p-6">
       <h3 className="text-2xl font-bold text-[#005596] mb-6">Boarding Runs</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
         {runAreas.map(run => (
           <AreaSection
             key={run.area}
@@ -35,6 +39,9 @@ export const BoardingRunsSection: React.FC<BoardingRunsSectionProps> = (props) =
             handleDrop={props.handleDrop}
             handleDragStart={props.handleDragStart}
             setSelectedDog={props.setSelectedDog}
+            mobileMoveDogId={props.mobileMoveDogId}
+            setMobileMoveDogId={props.setMobileMoveDogId}
+            handleMobileDrop={props.handleMobileDrop}
           />
         ))}
       </div>

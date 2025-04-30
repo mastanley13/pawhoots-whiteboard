@@ -27,13 +27,19 @@ import { GHLContactSearch } from './components/GHLContactSearch';
 const areaConfigs = {
   yard1: { title: 'Yard 1', positions: 12 },
   yard2: { title: 'Yard 2', positions: 12 },
+  yard3: { title: 'Yard 3', positions: 12 },
+  yard1Holding: { title: 'Yard 1 Holding', positions: 6 },
+  yard2Holding: { title: 'Yard 2 Holding', positions: 6 },
+  indoorPlayroom1: { title: 'Indoor Playroom 1', positions: 8 },
+  indoorPlayroom2: { title: 'Indoor Playroom 2', positions: 8 },
   lobby: { title: 'Lobby', positions: 9 },
+  chucksAlley: { title: "Chuck's Alley", positions: 8 },
+  trinsTown: { title: "Trin's Town", positions: 8 },
+  nalasDen: { title: "Nala's Den", positions: 8 },
+  // legacy areas retained but not shown
   smallDogSuite: { title: 'Small Dog Suite', positions: 6 },
   training: { title: 'Training', positions: 4 },
-  runs: { title: 'Runs', positions: 8 }, // Added missing areas
-  chucksAlley: { title: 'Chuck\'s Alley', positions: 8 },
-  nalasDen: { title: 'Nala\'s Den', positions: 8 },
-  trinsTown: { title: 'Trin\'s Town', positions: 8 },
+  runs: { title: 'Runs', positions: 8 },
 } as const;
 
 // type PlayAreaKey = keyof typeof areaConfigs; // Keep if needed
@@ -57,6 +63,21 @@ function useDebounce<T>(value: T, delay: number): T {
 
   return debouncedValue;
 }
+
+// Ordered keys for rendering (mobile collapsible grid & other components)
+const orderedAreaKeys: Array<keyof typeof areaConfigs> = [
+  'yard1',
+  'yard2',
+  'yard3',
+  'yard1Holding',
+  'yard2Holding',
+  'indoorPlayroom1',
+  'indoorPlayroom2',
+  'lobby',
+  'chucksAlley',
+  'trinsTown',
+  'nalasDen',
+];
 
 export function EmployeeResourcesPage() {
   // --- State Definitions ---
@@ -98,6 +119,9 @@ export function EmployeeResourcesPage() {
     'Mio0TwZKlZRwXEQIJ1FC', // Trin's Town
     'RPGNTsMRo8yJpuALjPOM'  // Chuck's Alley
   ];
+
+  // --- Mobile touch move state ---
+  const [mobileMoveDogId, setMobileMoveDogId] = useState<string | null>(null);
 
   // --- Helper Functions (defined in parent scope) ---
 
@@ -479,17 +503,15 @@ export function EmployeeResourcesPage() {
   // --- Drag and Drop Handlers ---
   const handleDragStart = useCallback((e: React.DragEvent, dogId: string) => {
     e.dataTransfer.setData('dogId', dogId);
+    // Clear any touch selection so desktop drag does not interfere
+    setMobileMoveDogId(null);
   }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent, targetArea: LocationArea | null, targetPosition: number | null) => { // Allow null targetArea
-    e.preventDefault();
-    const dogId = e.dataTransfer.getData('dogId');
-    if (!dogId) return;
-
+  const performMove = (dogId: string, targetArea: LocationArea | null, targetPosition: number | null) => {
     const now = new Date();
     const currentDog = dogs.find(d => d.id === dogId);
     if (!currentDog) return;
@@ -498,26 +520,35 @@ export function EmployeeResourcesPage() {
     if (targetArea !== null && targetPosition !== null) {
       const occupyingDog = dogs.find(d => d.location.area === targetArea && d.location.position === targetPosition);
       if (occupyingDog && occupyingDog.id !== dogId) {
-        console.warn("Target position occupied");
+        console.warn('Target position occupied');
         return; // Prevent drop
       }
     }
 
     // Update only if location actually changed or moving to/from pool
     if (currentDog.location.area !== targetArea || currentDog.location.position !== targetPosition) {
-       const newHistoryEntry: LocationHistoryEntry = { area: targetArea, position: targetPosition, timestamp: now };
-       setDogs(prev => prev.map(dog =>
-         dog.id === dogId
-           ? {
-               ...dog,
-               location: { area: targetArea, position: targetPosition },
-               lastUpdated: now,
-               locationHistory: [...(dog.locationHistory || []), newHistoryEntry],
-             }
-           : dog
-       ));
+      const newHistoryEntry: LocationHistoryEntry = { area: targetArea, position: targetPosition, timestamp: now };
+      setDogs(prev => prev.map(dog =>
+        dog.id === dogId
+          ? { ...dog, location: { area: targetArea, position: targetPosition }, lastUpdated: now, locationHistory: [...(dog.locationHistory || []), newHistoryEntry] }
+          : dog
+      ));
     }
+  };
+
+  const handleDrop = useCallback((e: React.DragEvent, targetArea: LocationArea | null, targetPosition: number | null) => { // Allow null targetArea
+    e.preventDefault();
+    const dogId = e.dataTransfer.getData('dogId');
+    if (!dogId) return;
+    performMove(dogId, targetArea, targetPosition);
   }, [dogs]); // Added dogs dependency
+
+  // Handle mobile drop via tap
+  const handleMobileDrop = useCallback((targetArea: LocationArea | null, targetPosition: number | null) => {
+    if (!mobileMoveDogId) return;
+    performMove(mobileMoveDogId, targetArea, targetPosition);
+    setMobileMoveDogId(null);
+  }, [mobileMoveDogId, dogs]);
 
   // --- Filtering Logic ---
   const filteredDogs = useMemo(() => dogs.filter(dog => {
@@ -556,26 +587,20 @@ export function EmployeeResourcesPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero Section */}
-      <section className="bg-[#005596] text-white pt-32 pb-16 relative overflow-hidden">
-         {/* Background Pattern */}
-         <div className="absolute inset-0 opacity-10">
-           <div className="absolute inset-0" style={{
-             backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-           }}></div>
-         </div>
-
+      <section className="bg-[#005596] text-white pt-16 pb-10 md:pt-24 md:pb-14 relative">
+         {/* solid background, pattern removed */}
          <div className="container mx-auto px-4 relative">
            <div className="flex flex-col items-center">
              {/* Icon Container */}
-             <div className="bg-white rounded-full p-4 mb-8 shadow-lg w-32 h-32 flex items-center justify-center overflow-hidden border-4 border-[#d32f2f] border-opacity-50">
+             <div className="bg-white rounded-full p-4 mb-6 md:mb-8 shadow-lg w-24 h-24 md:w-32 md:h-32 flex items-center justify-center overflow-hidden border-4 border-[#d32f2f] border-opacity-50">
                <img
                  src="https://storage.googleapis.com/msgsndr/mGAU84INytusQO0Fo5P9/media/6798fd8c4f0aeba1445fcd49.gif"
                  alt="Employee Resources"
                  className="w-full h-full object-cover"
                />
              </div>
-            <h1 className="hero-heading text-5xl text-center mb-6">Dog Whiteboard</h1>
-            <p className="text-xl text-center max-w-2xl mx-auto">
+            <h1 className="hero-heading text-2xl md:text-3xl text-center mb-3 md:mb-5">Champs Pet Tracker</h1>
+            <p className="text-base md:text-xl text-center max-w-2xl mx-auto">
               Manage and track dogs across different areas of Champ's Dog House
             </p>
            </div>
@@ -646,47 +671,48 @@ export function EmployeeResourcesPage() {
               />
             )}
 
-            {/* Dog Pool - Adjust props */}
-            <DogPool
-               poolDogs={filteredDogs.filter(dog => !dog.location.area)}
-               handleDrop={handleDrop}
-               handleDragOver={handleDragOver}
-               setSelectedDog={setSelectedDog}
-               handleDragStart={handleDragStart}
-             />
+            {/* Side-by-side layout */}
+            <div className="flex flex-col lg:flex-row gap-6">
+              {/* Dog Pool on the left */}
+              <div className="lg:w-1/3 lg:max-w-sm flex-shrink-0">
+                <DogPool
+                  poolDogs={filteredDogs.filter(dog => !dog.location.area)}
+                  handleDrop={handleDrop}
+                  handleDragOver={handleDragOver}
+                  setSelectedDog={setSelectedDog}
+                  handleDragStart={handleDragStart}
+                  mobileMoveDogId={mobileMoveDogId}
+                  setMobileMoveDogId={setMobileMoveDogId}
+                  handleMobileDrop={handleMobileDrop}
+                />
+              </div>
 
-            {/* Boarding Runs - Adjust props */}
-            <BoardingRunsSection
-               dogs={dogs}
-               getDogsInPosition={getDogsInPosition}
-               handleDrop={handleDrop}
-               handleDragOver={handleDragOver}
-               setSelectedDog={setSelectedDog}
-               handleDragStart={handleDragStart}
-            />
-
-            {/* Play Areas Grid - Adjust props */}
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-               {(Object.keys(areaConfigs) as Array<keyof typeof areaConfigs>)
-                 .filter(key => !['runs', 'chucksAlley', 'nalasDen', 'trinsTown'].includes(key))
-                 .map(areaKey => (
-                   <AreaSection
-                     key={areaKey}
-                     area={areaKey}
-                     title={areaConfigs[areaKey].title}
-                     positions={areaConfigs[areaKey].positions}
-                     dogs={dogs}
-                     getDogsInPosition={getDogsInPosition}
-                     handleDrop={handleDrop}
-                     handleDragOver={handleDragOver}
-                     setSelectedDog={setSelectedDog}
-                     handleDragStart={handleDragStart}
-                   />
-               ))}
-             </div>
-           </div>
-         </div>
-       </section>
+              {/* Play Areas on the right */}
+              <div className="flex-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {orderedAreaKeys.map(areaKey => (
+                    <AreaSection
+                      key={areaKey}
+                      area={areaKey}
+                      title={areaConfigs[areaKey].title}
+                      positions={areaConfigs[areaKey].positions}
+                      dogs={dogs}
+                      getDogsInPosition={getDogsInPosition}
+                      handleDrop={handleDrop}
+                      handleDragOver={handleDragOver}
+                      setSelectedDog={setSelectedDog}
+                      handleDragStart={handleDragStart}
+                      mobileMoveDogId={mobileMoveDogId}
+                      setMobileMoveDogId={setMobileMoveDogId}
+                      handleMobileDrop={handleMobileDrop}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Navigation Menu Section removed */}
 

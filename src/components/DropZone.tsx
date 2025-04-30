@@ -10,6 +10,9 @@ interface DropZoneProps {
   handleDrop: (e: React.DragEvent, area: LocationArea, position: number) => void;
   handleDragStart: (e: React.DragEvent, dogId: string) => void;
   setSelectedDog: (dog: Dog | null) => void;
+  mobileMoveDogId?: string | null;
+  setMobileMoveDogId?: (id: string | null) => void;
+  handleMobileDrop?: (area: LocationArea, position: number | null) => void;
 }
 
 export const DropZone: React.FC<DropZoneProps> = ({ 
@@ -19,13 +22,21 @@ export const DropZone: React.FC<DropZoneProps> = ({
   handleDragOver, 
   handleDrop, 
   handleDragStart,
-  setSelectedDog
+  setSelectedDog,
+  mobileMoveDogId,
+  setMobileMoveDogId,
+  handleMobileDrop
 }) => {
   return (
     <div
       onDragOver={handleDragOver}
       onDrop={(e) => handleDrop(e, area, position)}
-      className={`min-h-[100px] rounded-lg ${dogsInPosition.length === 0 ? 'border-2 border-dashed border-gray-300' : ''}`}
+      onClick={() => {
+        if (mobileMoveDogId && handleMobileDrop) {
+          handleMobileDrop(area, position);
+        }
+      }}
+      className={`min-h-[80px] md:min-h-[100px] rounded-lg ${dogsInPosition.length === 0 ? 'border border-dashed md:border-2 border-gray-300' : ''} ${mobileMoveDogId ? 'cursor-pointer' : ''}`}
     >
       {dogsInPosition.map(dog => (
         <DogCard 
@@ -33,6 +44,8 @@ export const DropZone: React.FC<DropZoneProps> = ({
           dog={dog} 
           onDragStart={handleDragStart}
           onViewDetails={setSelectedDog}
+          onMobileSelect={setMobileMoveDogId}
+          isSelectedForMove={mobileMoveDogId === dog.id}
         />
       ))}
     </div>
