@@ -4,7 +4,6 @@ import { DogDetailsModal } from './components/DogDetailsModal';
 import { SearchFilterBar } from './components/SearchFilterBar';
 import { SchedulerPanel } from './components/SchedulerPanel';
 import { DogPool } from './components/DogPool';
-import { BoardingRunsSection } from './components/BoardingRunsSection';
 import { AreaSection } from './components/AreaSection';
 import {
   searchCustomObjectRecords,
