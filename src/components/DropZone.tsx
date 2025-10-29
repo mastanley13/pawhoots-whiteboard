@@ -1,6 +1,6 @@
-import React from 'react';
-import { Dog, LocationArea } from '../types/types';
-import { DogCard } from './DogCard';
+import React from "react";
+import { Dog, LocationArea } from "../types/types";
+import { DogCard } from "./DogCard";
 
 interface DropZoneProps {
   area: LocationArea;
@@ -15,18 +15,23 @@ interface DropZoneProps {
   handleMobileDrop?: (area: LocationArea, position: number | null) => void;
 }
 
-export const DropZone: React.FC<DropZoneProps> = ({ 
-  area, 
-  position, 
-  dogsInPosition, 
-  handleDragOver, 
-  handleDrop, 
+export const DropZone: React.FC<DropZoneProps> = ({
+  area,
+  position,
+  dogsInPosition,
+  handleDragOver,
+  handleDrop,
   handleDragStart,
   setSelectedDog,
   mobileMoveDogId,
   setMobileMoveDogId,
-  handleMobileDrop
+  handleMobileDrop,
 }) => {
+  const isEmpty = dogsInPosition.length === 0;
+  const baseClasses = isEmpty
+    ? "bg-white/75 border border-dashed border-[#7d48c2]/30"
+    : "bg-white shadow-sm border border-[#f0f0f0]";
+
   return (
     <div
       onDragOver={handleDragOver}
@@ -36,12 +41,12 @@ export const DropZone: React.FC<DropZoneProps> = ({
           handleMobileDrop(area, position);
         }
       }}
-      className={`min-h-[80px] md:min-h-[100px] rounded-lg ${dogsInPosition.length === 0 ? 'border border-dashed md:border-2 border-gray-300' : ''} ${mobileMoveDogId ? 'cursor-pointer' : ''}`}
+      className={`min-h-[80px] md:min-h-[100px] rounded-lg transition-all duration-150 ${baseClasses} ${mobileMoveDogId ? 'cursor-pointer' : ''}`}
     >
-      {dogsInPosition.map(dog => (
-        <DogCard 
-          key={dog.id} 
-          dog={dog} 
+      {dogsInPosition.map((dog) => (
+        <DogCard
+          key={dog.id}
+          dog={dog}
           onDragStart={handleDragStart}
           onViewDetails={setSelectedDog}
           onMobileSelect={setMobileMoveDogId}
@@ -50,4 +55,4 @@ export const DropZone: React.FC<DropZoneProps> = ({
       ))}
     </div>
   );
-}; 
+};

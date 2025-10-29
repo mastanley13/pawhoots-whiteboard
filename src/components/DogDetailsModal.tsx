@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Dog } from '../types/types';
+import { Dog, GroupArea } from '../types/types';
 import { formatTimeElapsed } from "../utils";
 import { getPetOwnerContactDetails, getPetVaccineRecords, GhlVaccineRecord } from '../services/api';
 import { ContactDetailsModal } from './ContactDetailsModal';
+import { GROUP_LABELS } from '../shared/constants/groups';
 
 interface DogDetailsModalProps {
   dog: Dog;
@@ -52,25 +53,34 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
   const [vaccineRecords, setVaccineRecords] = useState<GhlVaccineRecord[]>([]);
   const [isLoadingVaccines, setIsLoadingVaccines] = useState(false);
 
-  // Get the most recent yard and run assignments from location history
-  const getMostRecentLocation = (locationType: 'yard' | 'run'): string => {
+  // Get the most recent group and run assignments from location history
+  const groupAreas = ['small', 'medium', 'large', 'buddy_play', 'play_school'] as const;
+
+  const getMostRecentLocation = (locationType: 'group' | 'run'): string => {
     if (!dog.locationHistory || dog.locationHistory.length === 0) {
       return 'None';
     }
     
-    // Filter for yard or run locations and sort by timestamp (newest first)
+    // Filter for group or run locations and sort by timestamp (newest first)
     const filteredHistory = [...dog.locationHistory]
       .filter(entry => 
-        locationType === 'yard' 
-          ? entry.area === 'yard1' || entry.area === 'yard2'
+        locationType === 'group' 
+          ? groupAreas.includes((entry.area || '') as typeof groupAreas[number])
           : entry.area === 'runs' || entry.area === 'chucksAlley' || entry.area === 'nalasDen' || entry.area === 'trinsTown'
       )
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     
     // Return the area name if found, otherwise 'None'
-    return filteredHistory.length > 0 
-      ? (filteredHistory[0].area || 'None')
-      : 'None';
+    if (filteredHistory.length === 0) {
+      return 'None';
+    }
+
+    const area = filteredHistory[0].area;
+    if (locationType === 'group' && area) {
+      return GROUP_LABELS[(area as GroupArea)] ?? area;
+    }
+
+    return area || 'None';
   };
 
   // Fetch owner contact details when the dog is selected
@@ -138,7 +148,7 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
           <div className="flex items-center">
             {/* Pet Profile Image */}
             {dog.profileImage ? (
-              <div className="mr-4 w-16 h-16 rounded-full overflow-hidden border-2 border-[#005596]">
+              <div className="mr-4 w-16 h-16 rounded-full overflow-hidden border-2 border-[var(--phz-purple)]">
                 <img 
                   src={dog.profileImage} 
                   alt={`${dog.name}'s profile`}
@@ -153,11 +163,11 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="mr-4 w-16 h-16 rounded-full overflow-hidden border-2 border-[#005596] bg-gray-100 flex items-center justify-center">
+              <div className="mr-4 w-16 h-16 rounded-full overflow-hidden border-2 border-[var(--phz-purple)] bg-gray-100 flex items-center justify-center">
                 <span className="text-3xl">🐾</span>
               </div>
             )}
-            <h2 className="text-2xl font-bold text-[#005596]">{dog.name}</h2>
+            <h2 className="text-2xl font-bold text-[var(--phz-purple)]">{dog.name}</h2>
           </div>
           <button
             onClick={onClose}
@@ -172,13 +182,13 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
         {/* Tab navigation */}
         <div className="flex border-b mb-6">
           <button
-            className={`px-4 py-2 ${activeTab === 'info' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-600'}`}
+            className={`px-4 py-2 ${activeTab === 'info' ? 'border-b-2 border-[var(--phz-orange)] text-[var(--phz-orange)]' : 'text-gray-600'}`}
             onClick={() => setActiveTab('info')}
           >
             Info
           </button>
           <button
-            className={`px-4 py-2 ${activeTab === 'history' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-600'}`}
+            className={`px-4 py-2 ${activeTab === 'history' ? 'border-b-2 border-[var(--phz-orange)] text-[var(--phz-orange)]' : 'text-gray-600'}`}
             onClick={() => setActiveTab('history')}
           >
             History
@@ -190,7 +200,7 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
           <div className="space-y-6">
             {/* Basic Info */}
             <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="font-bold text-[#005596] mb-2">Basic Information</h3>
+              <h3 className="font-bold text-[var(--phz-purple)] mb-2">Basic Information</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-gray-600">Breed</p>
@@ -225,8 +235,8 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
                   <p className="font-medium">{dog.lastUpdated.toLocaleString()} ({formatTimeElapsed(dog.lastUpdated)})</p>
                 </div>
                 <div>
-                  <p className="text-gray-600">Most Recent Yard Assignment</p>
-                  <p className="font-medium">{getMostRecentLocation('yard')}</p>
+                  <p className="text-gray-600">Most Recent Group Assignment</p>
+                  <p className="font-medium">{getMostRecentLocation('group')}</p>
                 </div>
                 <div>
                   <p className="text-gray-600">Most Recent Run Assignment</p>
@@ -243,7 +253,7 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
 
             {/* Contact Info */}
             <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="font-bold text-[#005596] mb-2">Contact Information</h3>
+              <h3 className="font-bold text-[var(--phz-purple)] mb-2">Contact Information</h3>
               <div className="space-y-3">
                 {/* Pet Owner Associations Section */}
                 {isLoadingContacts ? (
@@ -261,11 +271,11 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
                         const displayName = contact.name || `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || contact.companyName || 'Unnamed Contact';
                         
                         return (
-                          <li key={contact.id} className="border-l-2 border-blue-300 pl-2">
+                          <li key={contact.id} className="border-l-2 border-[rgba(48,167,216,0.3)] pl-2">
                             {/* Make the name clickable */}
                             <button 
                               onClick={() => setSelectedContact(contact)} 
-                              className="font-medium text-blue-600 hover:underline text-left w-full cursor-pointer"
+                              className="font-medium text-[var(--phz-blue)] hover:underline text-left w-full cursor-pointer"
                             >
                               {displayName}
                             </button>
@@ -319,7 +329,7 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
 
             {/* Vaccination Status - Updated Section */}
             <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="font-bold text-[#005596] mb-2">Vaccine Records</h3>
+              <h3 className="font-bold text-[var(--phz-purple)] mb-2">Vaccine Records</h3>
               {isLoadingVaccines ? (
                 <div className="text-gray-500">Loading vaccine records...</div>
               ) : vaccineRecords.length > 0 ? (
@@ -350,7 +360,7 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
             {/* Notes - Removed since we now have Special Notes in Basic Info */}
             {dog.notes && !dog.specialNotes && (
               <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="font-bold text-[#005596] mb-2">Additional Notes</h3>
+                <h3 className="font-bold text-[var(--phz-purple)] mb-2">Additional Notes</h3>
                 <p className="font-medium">{dog.notes}</p>
               </div>
             )}
@@ -360,18 +370,18 @@ export const DogDetailsModal: React.FC<DogDetailsModalProps> = ({
         {/* History Tab */}
         {activeTab === 'history' && (
           <div className="space-y-4">
-            <h3 className="font-bold text-[#005596] mb-2">Location History</h3>
+            <h3 className="font-bold text-[var(--phz-purple)] mb-2">Location History</h3>
 
             {dog.locationHistory.length === 0 ? (
               <p className="text-gray-500 italic">No location history recorded</p>
             ) : (
               <div className="space-y-2">
                 {/* Timeline view */}
-                <div className="border-l-2 border-blue-300 pl-4 space-y-6">
+               <div className="border-l-2 border-[rgba(48,167,216,0.3)] pl-4 space-y-6">
                   {[...dog.locationHistory].reverse().map((entry, index) => (
                     <div key={index} className="relative">
                       {/* Timeline dot */}
-                      <div className="absolute -left-6 w-2 h-2 rounded-full bg-blue-500"></div>
+                     <div className="absolute -left-6 w-2 h-2 rounded-full bg-[var(--phz-blue)]"></div>
 
                       {/* Content */}
                       <div className="bg-gray-50 p-3 rounded-md">

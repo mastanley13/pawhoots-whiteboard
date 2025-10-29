@@ -1,6 +1,10 @@
+import type { GroupType } from '../shared/constants/groups';
+
+export type GroupArea = GroupType;
+
 // Location history entry interface
 export interface LocationHistoryEntry {
-  area: 'yard1' | 'yard2' | 'yard3' | 'yard1Holding' | 'yard2Holding' | 'indoorPlayroom1' | 'indoorPlayroom2' | 'lobby' | 'smallDogSuite' | 'training' | 'available' | 'runs' | 'chucksAlley' | 'nalasDen' | 'trinsTown' | null;
+  area: GroupArea | 'lobby' | 'smallDogSuite' | 'training' | 'available' | 'runs' | 'chucksAlley' | 'nalasDen' | 'trinsTown' | null;
   position: number | null;
   timestamp: Date;
 }
@@ -8,7 +12,7 @@ export interface LocationHistoryEntry {
 // Scheduled move interface
 export interface ScheduledMove {
   id: string;
-  targetArea: 'yard1' | 'yard2' | 'yard3' | 'yard1Holding' | 'yard2Holding' | 'indoorPlayroom1' | 'indoorPlayroom2' | 'lobby' | 'smallDogSuite' | 'training' | 'available' | 'runs' | 'chucksAlley' | 'nalasDen' | 'trinsTown' | null;
+  targetArea: GroupArea | 'lobby' | 'smallDogSuite' | 'training' | 'available' | 'runs' | 'chucksAlley' | 'nalasDen' | 'trinsTown' | null;
   targetPosition: number | null;
   scheduledTime: Date;
   completed: boolean;
@@ -20,7 +24,7 @@ export interface Dog {
   name: string;
   breed: string;
   location: {
-    area: 'yard1' | 'yard2' | 'yard3' | 'yard1Holding' | 'yard2Holding' | 'indoorPlayroom1' | 'indoorPlayroom2' | 'lobby' | 'smallDogSuite' | 'training' | 'available' | 'runs' | 'chucksAlley' | 'nalasDen' | 'trinsTown' | null;
+    area: GroupArea | 'lobby' | 'smallDogSuite' | 'training' | 'available' | 'runs' | 'chucksAlley' | 'nalasDen' | 'trinsTown' | null;
     position: number | null;
   };
   color: 'green' | 'yellow' | 'orange' | 'blue' | 'red' | null; // For different status indicators

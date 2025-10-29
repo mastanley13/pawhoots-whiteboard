@@ -25,7 +25,7 @@ export const BoardingRunsSection: React.FC<BoardingRunsSectionProps> = (props) =
 
   return (
     <div className="bg-gray-50 rounded-xl p-6">
-      <h3 className="text-2xl font-bold text-[#005596] mb-6">Boarding Runs</h3>
+      <h3 className="text-2xl font-bold text-[var(--phz-purple)] mb-6">Boarding Runs</h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
         {runAreas.map(run => (
           <AreaSection

@@ -43,11 +43,11 @@
     {
       "id": "67ffe6ac91fb9898afffc407",
       "associationType": "USER_DEFINED",
-      "firstObjectLabel": "Reports from Champs",
+      "firstObjectLabel": "Reports from PawHootz Pet Resort",
       "firstObjectKey": "custom_objects.pets",
-      "secondObjectLabel": "Reports from Champs",
+      "secondObjectLabel": "Reports from PawHootz Pet Resort",
       "secondObjectKey": "custom_objects.reports",
-      "key": "reports_from_champs",
+      "key": "reports_from_pawhootz_pet_resort",
       "locationId": "mGAU84INytusQO0Fo5P9"
     },
     {

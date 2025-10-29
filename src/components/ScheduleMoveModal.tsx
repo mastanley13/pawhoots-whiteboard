@@ -27,7 +27,7 @@ export const ScheduleMoveModal: React.FC<ScheduleMoveModalProps> = ({ dog, onClo
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-[#005596]">Schedule Move for {dog.name}</h2>
+          <h2 className="text-xl font-bold text-[var(--phz-purple)]">Schedule Move for {dog.name}</h2>
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-full"
@@ -41,7 +41,7 @@ export const ScheduleMoveModal: React.FC<ScheduleMoveModalProps> = ({ dog, onClo
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="target-area">
-              Target Area
+              Target Group
             </label>
             <select
               id="target-area"
@@ -50,8 +50,11 @@ export const ScheduleMoveModal: React.FC<ScheduleMoveModalProps> = ({ dog, onClo
               onChange={e => setTargetArea(e.target.value as LocationArea)}
             >
               <option value="">Available (Pool)</option>
-              <option value="yard1">Yard 1</option>
-              <option value="yard2">Yard 2</option>
+              <option value="small">Small Group</option>
+              <option value="medium">Medium Group</option>
+              <option value="large">Large Group</option>
+              <option value="buddy_play">Buddy Play</option>
+              <option value="play_school">Play School</option>
               <option value="lobby">Lobby</option>
               <option value="smallDogSuite">Small Dog Suite</option>
               <option value="training">Training</option>
@@ -125,7 +128,7 @@ export const ScheduleMoveModal: React.FC<ScheduleMoveModalProps> = ({ dog, onClo
             </button>
             <button
               onClick={handleSchedule}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+              className="px-4 py-2 bg-[var(--phz-orange)] hover:bg-[#d63f1c] text-white rounded-lg transition-colors"
             >
               Schedule
             </button>

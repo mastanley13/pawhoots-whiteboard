@@ -54,7 +54,7 @@ export const GHLContactSearch: React.FC<GHLContactSearchProps> = ({ onImportDog 
 
   return (
     <div className="mb-6 p-4 bg-white rounded-xl shadow-md">
-      <h3 className="text-xl font-bold text-[#005596] mb-4">Import from GoHighLevel</h3>
+      <h3 className="text-xl font-bold text-[var(--phz-purple)] mb-4">Import from GoHighLevel</h3>
       
       <div className="mb-4">
         <div className="flex gap-2">
