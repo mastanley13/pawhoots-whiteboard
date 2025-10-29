@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Dog, Staff, LocationHistoryEntry, ScheduledMove, LocationArea } from './types/types'; // Removed DogColor import
 import { DogDetailsModal } from './components/DogDetailsModal';
-import { SearchFilterBar } from './components/SearchFilterBar';
+import { SearchFilterBar, type GroupStatusFilter, type ColumnSortOption } from './components/SearchFilterBar';
 import { SchedulerPanel } from './components/SchedulerPanel';
 import { DogPool } from './components/DogPool';
 import { AreaSection } from './components/AreaSection';
@@ -14,6 +14,8 @@ import {
   GhlPetRecord
 } from './services/api';
 import { GHLContactSearch } from './components/GHLContactSearch';
+import { normalizeDogRecord, normalizeLocationArea } from './utils';
+import { GROUP_LABELS, type GroupType } from './shared/constants/groups';
 
 // Define a type for the GHL Pet record structure (adjust based on actual GHL response)
 // REMOVED - Now imported from api.ts
@@ -24,13 +26,11 @@ import { GHLContactSearch } from './components/GHLContactSearch';
 // Type for the keys of areaConfigs (Keep if needed by LocationArea type or other logic)
 // Define area configurations including capacity (Moved here if needed, otherwise remove)
 const areaConfigs = {
-  yard1: { title: 'Yard 1', positions: 12 },
-  yard2: { title: 'Yard 2', positions: 12 },
-  yard3: { title: 'Yard 3', positions: 12 },
-  yard1Holding: { title: 'Yard 1 Holding', positions: 6 },
-  yard2Holding: { title: 'Yard 2 Holding', positions: 6 },
-  indoorPlayroom1: { title: 'Indoor Playroom 1', positions: 8 },
-  indoorPlayroom2: { title: 'Indoor Playroom 2', positions: 8 },
+  small: { title: GROUP_LABELS.small, positions: 12 },
+  medium: { title: GROUP_LABELS.medium, positions: 12 },
+  large: { title: GROUP_LABELS.large, positions: 12 },
+  buddy_play: { title: GROUP_LABELS.buddy_play, positions: 8 },
+  play_school: { title: GROUP_LABELS.play_school, positions: 8 },
   lobby: { title: 'Lobby', positions: 9 },
   chucksAlley: { title: "Chuck's Alley", positions: 8 },
   trinsTown: { title: "Trin's Town", positions: 8 },
@@ -41,7 +41,87 @@ const areaConfigs = {
   runs: { title: 'Runs', positions: 8 },
 } as const;
 
-// type PlayAreaKey = keyof typeof areaConfigs; // Keep if needed
+const primaryGroupKeys = ['small', 'medium', 'large', 'buddy_play', 'play_school'] as const;
+type PrimaryGroupKey = typeof primaryGroupKeys[number];
+const BOARDING_RUN_LOCATIONS = new Set<LocationArea | string>(['runs', 'chucksAlley', 'nalasDen', 'trinsTown']);
+const PRIMARY_COLUMN_SET = new Set<PrimaryGroupKey>(['small', 'medium', 'large']);
+const SECONDARY_COLUMN_SET = new Set<PrimaryGroupKey>(['buddy_play', 'play_school']);
+
+const demoDogs: Dog[] = [
+  {
+    id: 'demo-small-1',
+    name: 'Luna',
+    breed: 'Golden Retriever',
+    location: { area: 'small', position: 1 },
+    color: 'green',
+    traits: ['gentle'],
+    lastUpdated: new Date(),
+    assignedStaff: null,
+    locationHistory: [{ area: 'small', position: 1, timestamp: new Date() }],
+    scheduledMoves: [],
+  },
+  {
+    id: 'demo-medium-1',
+    name: 'Moose',
+    breed: 'Bernedoodle',
+    location: { area: 'medium', position: 1 },
+    color: 'blue',
+    traits: ['friendly'],
+    lastUpdated: new Date(),
+    assignedStaff: null,
+    locationHistory: [{ area: 'medium', position: 1, timestamp: new Date() }],
+    scheduledMoves: [],
+  },
+  {
+    id: 'demo-large-1',
+    name: 'Koda',
+    breed: 'Alaskan Malamute',
+    location: { area: 'large', position: 1 },
+    color: 'orange',
+    traits: ['energetic'],
+    lastUpdated: new Date(),
+    assignedStaff: null,
+    locationHistory: [{ area: 'large', position: 1, timestamp: new Date() }],
+    scheduledMoves: [],
+  },
+  {
+    id: 'demo-buddy-1',
+    name: 'Piper',
+    breed: 'Beagle',
+    location: { area: 'buddy_play', position: 1 },
+    color: 'yellow',
+    traits: ['vocal'],
+    lastUpdated: new Date(),
+    assignedStaff: null,
+    locationHistory: [{ area: 'buddy_play', position: 1, timestamp: new Date() }],
+    scheduledMoves: [],
+  },
+  {
+    id: 'demo-school-1',
+    name: 'Harper',
+    breed: 'Border Collie',
+    location: { area: 'play_school', position: 1 },
+    color: 'blue',
+    traits: ['jumper'],
+    lastUpdated: new Date(),
+    assignedStaff: null,
+    locationHistory: [{ area: 'play_school', position: 1, timestamp: new Date() }],
+    scheduledMoves: [],
+  },
+  {
+    id: 'demo-available-1',
+    name: 'Scout',
+    breed: 'Australian Shepherd',
+    location: { area: null, position: null },
+    color: 'green',
+    traits: ['gentle'],
+    lastUpdated: new Date(),
+    assignedStaff: null,
+    locationHistory: [{ area: null, position: null, timestamp: new Date() }],
+    scheduledMoves: [],
+  },
+];
+
 
 // type NavSection = 'main' | 'portal' | 'external'; // Defined type for nav section
 
@@ -63,21 +143,6 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-// Ordered keys for rendering (mobile collapsible grid & other components)
-const orderedAreaKeys: Array<keyof typeof areaConfigs> = [
-  'yard1',
-  'yard2',
-  'yard3',
-  'yard1Holding',
-  'yard2Holding',
-  'indoorPlayroom1',
-  'indoorPlayroom2',
-  'lobby',
-  'chucksAlley',
-  'trinsTown',
-  'nalasDen',
-];
-
 export function EmployeeResourcesPage() {
   // --- State Definitions ---
   // const [activeNavSection, setActiveNavSection] = useState<NavSection | null>(null); // Use NavSection type, default to null
@@ -88,8 +153,11 @@ export function EmployeeResourcesPage() {
   const [showScheduler, setShowScheduler] = useState<boolean>(false);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null); // Renamed for clarity, holds ID
   const [showImport, setShowImport] = useState<boolean>(false);
-  const [dogs, setDogs] = useState<Dog[]>([]); // Initial state is empty
+  const [dogs, setDogs] = useState<Dog[]>(demoDogs); // Seeded with demo dogs; replaced when live data loads
   const [staff] = useState<Staff[]>([]); // Empty array, no mock staff
+  const [groupTypeFilter, setGroupTypeFilter] = useState<GroupType | ''>('');
+  const [statusFilter, setStatusFilter] = useState<GroupStatusFilter>('all');
+  const [columnSort, setColumnSort] = useState<ColumnSortOption>('default');
 
   // --- GHL State ---
   const [ghlSearchQuery, setGhlSearchQuery] = useState<string>(''); // Input field value
@@ -112,11 +180,11 @@ export function EmployeeResourcesPage() {
 
   // Target Calendar IDs for scheduled dogs
   const TARGET_CALENDAR_IDS = [
-    '8A8sN0yeST6qSmRZ85Dl', // Yard 1
-    'bbNCMyLoBqCKwp4IrZzE', // Yard 2
-    'GmhrXLC9VYsmFNLXWg1x', // Nala's Den
-    'Mio0TwZKlZRwXEQIJ1FC', // Trin's Town
-    'RPGNTsMRo8yJpuALjPOM'  // Chuck's Alley
+    '8A8sN0yeST6qSmRZ85Dl', // Small Group
+    'bbNCMyLoBqCKwp4IrZzE', // Medium Group
+    'GmhrXLC9VYsmFNLXWg1x', // Large Group
+    'Mio0TwZKlZRwXEQIJ1FC', // Buddy Play
+    'RPGNTsMRo8yJpuALjPOM'  // Play School
   ];
 
   // --- Mobile touch move state ---
@@ -252,11 +320,14 @@ export function EmployeeResourcesPage() {
               localStorage.removeItem('dogWhiteboardData');
 
               const scheduledDogs = await fetchTodaysScheduledDogs();
-              setDogs(scheduledDogs); // Set initial state with scheduled dogs
+              const normalizedDogs = scheduledDogs.map(normalizeDogRecord);
+              if (normalizedDogs.length > 0) {
+                setDogs(normalizedDogs);
+              }
           } catch (error) {
               console.error("Error fetching scheduled dogs on mount:", error);
               setFetchScheduledDogsError("Failed to load scheduled dogs. Please try refreshing.");
-              setDogs([]); // Set to empty on error
+              
           } finally {
               setIsLoadingScheduledDogs(false);
           }
@@ -414,7 +485,7 @@ export function EmployeeResourcesPage() {
         // Update existing dog, carefully merging fields and preserving location/history/schedule
         return prev.map(dog => {
           if (dog.id === dogData.id) {
-            return {
+            return normalizeDogRecord({
               ...dog, // Keep existing data
               ...dogData, // Override with imported data
               // Explicitly preserve dynamic state:
@@ -424,7 +495,7 @@ export function EmployeeResourcesPage() {
               scheduledMoves: dog.scheduledMoves || [],
               assignedStaff: dog.assignedStaff, // Preserve assigned staff unless explicitly changed by import
               id: dogData.id // Ensure we preserve the GHL ID for association lookup
-            };
+            });
           }
           return dog;
         });
@@ -454,7 +525,7 @@ export function EmployeeResourcesPage() {
           ...dogData,
           id: dogData.id // Ensure ID is set to the GHL pet ID for association lookup
         };
-        return [...prev, newDog];
+        return [...prev, normalizeDogRecord(newDog)];
       }
     });
   }, []);
@@ -515,9 +586,11 @@ export function EmployeeResourcesPage() {
     const currentDog = dogs.find(d => d.id === dogId);
     if (!currentDog) return;
 
+    const normalizedArea = targetArea === null ? null : normalizeLocationArea(targetArea);
+
     // Check if target spot is occupied by a *different* dog (only if not dropping into the pool)
-    if (targetArea !== null && targetPosition !== null) {
-      const occupyingDog = dogs.find(d => d.location.area === targetArea && d.location.position === targetPosition);
+    if (normalizedArea !== null && targetPosition !== null) {
+      const occupyingDog = dogs.find(d => d.location.area === normalizedArea && d.location.position === targetPosition);
       if (occupyingDog && occupyingDog.id !== dogId) {
         console.warn('Target position occupied');
         return; // Prevent drop
@@ -525,11 +598,16 @@ export function EmployeeResourcesPage() {
     }
 
     // Update only if location actually changed or moving to/from pool
-    if (currentDog.location.area !== targetArea || currentDog.location.position !== targetPosition) {
-      const newHistoryEntry: LocationHistoryEntry = { area: targetArea, position: targetPosition, timestamp: now };
+    if (currentDog.location.area !== normalizedArea || currentDog.location.position !== targetPosition) {
+      const newHistoryEntry: LocationHistoryEntry = { area: normalizedArea, position: targetPosition, timestamp: now };
       setDogs(prev => prev.map(dog =>
         dog.id === dogId
-          ? { ...dog, location: { area: targetArea, position: targetPosition }, lastUpdated: now, locationHistory: [...(dog.locationHistory || []), newHistoryEntry] }
+          ? {
+              ...dog,
+              location: { area: normalizedArea, position: targetPosition },
+              lastUpdated: now,
+              locationHistory: [...(dog.locationHistory || []), newHistoryEntry],
+            }
           : dog
       ));
     }
@@ -548,6 +626,29 @@ export function EmployeeResourcesPage() {
     performMove(mobileMoveDogId, targetArea, targetPosition);
     setMobileMoveDogId(null);
   }, [mobileMoveDogId, dogs]);
+
+  const getDogStatuses = useCallback((dog: Dog): Set<GroupStatusFilter> => {
+    const statuses = new Set<GroupStatusFilter>();
+    const area = dog.location.area;
+
+    if (!area) {
+      statuses.add('checked_out');
+      return statuses;
+    }
+
+    statuses.add('checked_in');
+
+    const normalized = normalizeLocationArea(area) as GroupType | null;
+    if (normalized && (primaryGroupKeys as readonly string[]).includes(normalized)) {
+      statuses.add('in_group');
+    }
+
+    if (BOARDING_RUN_LOCATIONS.has(area)) {
+      statuses.add('in_kennel');
+    }
+
+    return statuses;
+  }, []);
 
   // --- Filtering Logic ---
   const filteredDogs = useMemo(() => dogs.filter(dog => {
@@ -569,42 +670,87 @@ export function EmployeeResourcesPage() {
     const matchesStaff = !selectedStaffId ||
       (selectedStaffId === 'unassigned' ? !dog.assignedStaff : dog.assignedStaff === selectedStaffId);
 
-    // Combine filters: GHL selection (if active) AND other filters
-    return matchesLocation && matchesTrait && matchesStaff;
+    const normalizedArea = normalizeLocationArea(dog.location.area) as GroupType | null;
+    const matchesGroupType = groupTypeFilter === '' || normalizedArea === groupTypeFilter;
+    const matchesStatus = statusFilter === 'all' || getDogStatuses(dog).has(statusFilter);
 
-  }), [dogs, locationFilter, traitFilter, selectedStaffId, selectedGhlPetId]); // Use selectedGhlPetId for filtering
+    // Combine filters: GHL selection (if active) AND other filters
+    return matchesLocation && matchesTrait && matchesStaff && matchesGroupType && matchesStatus;
+
+  }), [dogs, locationFilter, traitFilter, selectedStaffId, selectedGhlPetId, groupTypeFilter, statusFilter, getDogStatuses]);
+
+  const occupancyByArea = useMemo(() => {
+    const counts = primaryGroupKeys.reduce((acc, key) => {
+      acc[key] = 0;
+      return acc;
+    }, {} as Record<PrimaryGroupKey, number>);
+
+    filteredDogs.forEach(dog => {
+      const normalized = normalizeLocationArea(dog.location.area) as GroupType | null;
+      if (normalized && (primaryGroupKeys as readonly string[]).includes(normalized)) {
+        counts[normalized as PrimaryGroupKey] += 1;
+      }
+    });
+
+    return counts;
+  }, [filteredDogs]);
+
+  const orderedAreaKeys = useMemo<PrimaryGroupKey[]>(() => {
+    if (columnSort === 'alpha') {
+      return [...primaryGroupKeys].sort((a, b) =>
+        GROUP_LABELS[a].localeCompare(GROUP_LABELS[b])
+      );
+    }
+
+    if (columnSort === 'occupancy') {
+      return [...primaryGroupKeys].sort((a, b) => {
+        const diff = (occupancyByArea[b] ?? 0) - (occupancyByArea[a] ?? 0);
+        return diff !== 0 ? diff : GROUP_LABELS[a].localeCompare(GROUP_LABELS[b]);
+      });
+    }
+
+    return [...primaryGroupKeys];
+  }, [columnSort, occupancyByArea]);
+
+  const columnOneKeys = useMemo(
+    () => orderedAreaKeys.filter(key => PRIMARY_COLUMN_SET.has(key)),
+    [orderedAreaKeys]
+  );
+  const columnTwoKeys = useMemo(
+    () => orderedAreaKeys.filter(key => SECONDARY_COLUMN_SET.has(key)),
+    [orderedAreaKeys]
+  );
 
   // Helper to get dogs in a specific position (used by DropZone potentially, keep for now)
   const getDogsInPosition = useCallback((area: LocationArea | null, position: number | null) => { // Allow null area/position
-    return dogs.filter(dog =>
+    return filteredDogs.filter(dog =>
       dog.location.area === area &&
       dog.location.position === position
     );
-  }, [dogs]); // Added dogs dependency
+  }, [filteredDogs]);
 
   // --- Main Render ---
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero Section */}
-      <section className="bg-[#005596] text-white pt-16 pb-10 md:pt-24 md:pb-14 relative">
-         {/* solid background, pattern removed */}
-         <div className="container mx-auto px-4 relative">
-           <div className="flex flex-col items-center">
-             {/* Icon Container */}
-             <div className="bg-white rounded-full p-4 mb-6 md:mb-8 shadow-lg w-24 h-24 md:w-32 md:h-32 flex items-center justify-center overflow-hidden border-4 border-[#d32f2f] border-opacity-50">
-               <img
-                 src="https://storage.googleapis.com/msgsndr/mGAU84INytusQO0Fo5P9/media/6798fd8c4f0aeba1445fcd49.gif"
-                 alt="Employee Resources"
-                 className="w-full h-full object-cover"
-               />
-             </div>
-            <h1 className="hero-heading text-2xl md:text-3xl text-center mb-3 md:mb-5">Champs Pet Tracker</h1>
-            <p className="text-base md:text-xl text-center max-w-2xl mx-auto">
-              Manage and track dogs across different areas of Champ's Dog House
-            </p>
-           </div>
-         </div>
-       </section>
+      <section className="relative overflow-hidden bg-white pt-12 pb-12 md:pt-16 md:pb-16">
+        <div
+          className="absolute bottom-0 left-0 right-0 h-32 bg-white"
+          style={{ clipPath: 'ellipse(120% 60% at 50% 100%)', boxShadow: '0 -30px 60px rgba(0,0,0,0.05)' }}
+        />
+        <div className="container mx-auto px-4 relative z-10">
+          <div className="flex flex-col items-center text-center">
+            <img
+              src="/branding/pawhootz/PawHootz Logo (1).png"
+              alt="PawHootz Pet Resort"
+              className="mb-2 md:mb-4 w-96 max-w-full drop-shadow-lg"
+            />
+            <h1 className="hero-heading text-2xl md:text-3xl font-semibold text-[var(--phz-purple)] uppercase tracking-wide">
+              Whiteboard
+            </h1>
+          </div>
+        </div>
+      </section>
 
       {/* Play Area Status Section */}
       <section className="py-8 bg-white">
@@ -647,12 +793,18 @@ export function EmployeeResourcesPage() {
                ghlPetNameFieldKey={GHL_PET_NAME_FIELD_KEY} 
                isFetchingGhlPets={isFetchingGhlPets}
                onImportGhlPet={handleImportGhlPet} // Add new prop
+               groupTypeFilter={groupTypeFilter}
+               setGroupTypeFilter={setGroupTypeFilter}
+               statusFilter={statusFilter}
+               setStatusFilter={setStatusFilter}
+               columnSort={columnSort}
+               setColumnSort={setColumnSort}
             />
 
              {/* GoHighLevel Import Section - Removed GHLBulkImport */}
              {showImport && (
                <div className="space-y-4 bg-gray-50 p-6 rounded-xl shadow">
-                 <h3 className="text-xl font-bold text-[#005596] mb-4 border-b pb-2">Import Contacts from GoHighLevel</h3>
+                 <h3 className="text-xl font-bold text-[var(--phz-purple)] mb-4 border-b border-[var(--phz-purple)]/20 pb-2">Import Contacts from GoHighLevel</h3>
                  {/* Render only GHLContactSearch */}
                  <GHLContactSearch onImportDog={handleImportDog} />
                </div>
@@ -688,24 +840,45 @@ export function EmployeeResourcesPage() {
 
               {/* Play Areas on the right */}
               <div className="flex-1">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {orderedAreaKeys.map(areaKey => (
-                    <AreaSection
-                      key={areaKey}
-                      area={areaKey}
-                      title={areaConfigs[areaKey].title}
-                      positions={areaConfigs[areaKey].positions}
-                      dogs={dogs}
-                      getDogsInPosition={getDogsInPosition}
-                      handleDrop={handleDrop}
-                      handleDragOver={handleDragOver}
-                      setSelectedDog={setSelectedDog}
-                      handleDragStart={handleDragStart}
-                      mobileMoveDogId={mobileMoveDogId}
-                      setMobileMoveDogId={setMobileMoveDogId}
-                      handleMobileDrop={handleMobileDrop}
-                    />
-                  ))}
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                  <div className="space-y-6">
+                    {columnOneKeys.map(areaKey => (
+                      <AreaSection
+                        key={areaKey}
+                        area={areaKey}
+                        title={areaConfigs[areaKey].title}
+                        positions={areaConfigs[areaKey].positions}
+                        dogs={filteredDogs}
+                        getDogsInPosition={getDogsInPosition}
+                        handleDrop={handleDrop}
+                        handleDragOver={handleDragOver}
+                        setSelectedDog={setSelectedDog}
+                        handleDragStart={handleDragStart}
+                        mobileMoveDogId={mobileMoveDogId}
+                        setMobileMoveDogId={setMobileMoveDogId}
+                        handleMobileDrop={handleMobileDrop}
+                      />
+                    ))}
+                  </div>
+                  <div className="space-y-6">
+                    {columnTwoKeys.map(areaKey => (
+                      <AreaSection
+                        key={areaKey}
+                        area={areaKey}
+                        title={areaConfigs[areaKey].title}
+                        positions={areaConfigs[areaKey].positions}
+                        dogs={filteredDogs}
+                        getDogsInPosition={getDogsInPosition}
+                        handleDrop={handleDrop}
+                        handleDragOver={handleDragOver}
+                        setSelectedDog={setSelectedDog}
+                        handleDragStart={handleDragStart}
+                        mobileMoveDogId={mobileMoveDogId}
+                        setMobileMoveDogId={setMobileMoveDogId}
+                        handleMobileDrop={handleMobileDrop}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -725,3 +898,6 @@ export function EmployeeResourcesPage() {
     </div>
   );
 }
+
+
+

@@ -18,7 +18,7 @@ export const ContactDetailsModal: React.FC<ContactDetailsModalProps> = ({
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-60"> {/* Ensure higher z-index */}
       <div className="bg-white rounded-lg p-5 max-w-md w-full mx-4">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-semibold text-[#005596]">{displayName}</h3>
+          <h3 className="text-xl font-semibold text-[var(--phz-purple)]">{displayName}</h3>
           <button
             onClick={onClose}
             className="p-1 hover:bg-gray-200 rounded-full text-gray-500 hover:text-gray-700"
@@ -35,7 +35,7 @@ export const ContactDetailsModal: React.FC<ContactDetailsModalProps> = ({
           {contact.email && (
             <div>
               <p className="text-sm text-gray-500">Email</p>
-              <a href={`mailto:${contact.email}`} className="text-blue-600 hover:underline font-medium break-all">
+              <a href={`mailto:${contact.email}`} className="text-[var(--phz-blue)] hover:underline font-medium break-all">
                 {contact.email}
               </a>
             </div>
@@ -45,7 +45,7 @@ export const ContactDetailsModal: React.FC<ContactDetailsModalProps> = ({
           {contact.phone && (
             <div>
               <p className="text-sm text-gray-500">Phone</p>
-              <a href={`tel:${contact.phone}`} className="text-blue-600 hover:underline font-medium">
+              <a href={`tel:${contact.phone}`} className="text-[var(--phz-blue)] hover:underline font-medium">
                 {contact.phone}
               </a>
             </div>

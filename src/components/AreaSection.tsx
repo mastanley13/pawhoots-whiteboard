@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Dog, LocationArea } from '../types/types';
-import { DropZone } from './DropZone';
+import React, { useMemo } from "react";
+import { Dog, LocationArea } from "../types/types";
+import { DropZone } from "./DropZone";
 
 interface AreaSectionProps {
   area: LocationArea;
@@ -17,64 +17,59 @@ interface AreaSectionProps {
   handleMobileDrop?: (area: LocationArea, position: number | null) => void;
 }
 
-export const AreaSection: React.FC<AreaSectionProps> = ({ 
-  area, 
-  title, 
-  positions, 
-  dogs, 
-  getDogsInPosition, 
-  handleDragOver, 
+const headerStyles: Record<string, { background: string; color: string }> = {
+  small: { background: "linear-gradient(135deg, #ede8ff 0%, #dcd2ff 100%)", color: "#372879" },
+  medium: { background: "linear-gradient(135deg, #e0f6ff 0%, #bfe9f7 100%)", color: "#124c63" },
+  large: { background: "linear-gradient(135deg, #ffe9d6 0%, #ffd2b1 100%)", color: "#7a2d09" },
+  buddy_play: { background: "linear-gradient(135deg, #ffe4f1 0%, #ffd6e8 100%)", color: "#6b2245" },
+  play_school: { background: "linear-gradient(135deg, #e7f5ff 0%, #cde9ff 100%)", color: "#1f3a85" },
+  default: { background: "linear-gradient(135deg, #ede8ff 0%, #ffe9da 100%)", color: "#372879" },
+};
+
+export const AreaSection: React.FC<AreaSectionProps> = ({
+  area,
+  title,
+  positions,
+  dogs,
+  getDogsInPosition,
+  handleDragOver,
   handleDrop,
   handleDragStart,
   setSelectedDog,
   mobileMoveDogId,
   setMobileMoveDogId,
-  handleMobileDrop
+  handleMobileDrop,
 }) => {
-  const dogsInAreaCount = dogs.filter(dog => dog.location.area === area).length;
-  const capacityColor = dogsInAreaCount >= positions ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800';
+  const dogsInAreaCount = dogs.filter((dog) => dog.location.area === area).length;
+  const capacityBadgeClasses =
+    dogsInAreaCount >= positions ? "bg-red-100/80 text-red-700" : "bg-green-100/80 text-green-700";
+  const styleKey = typeof area === "string" ? area : "default";
+  const headerStyle = headerStyles[styleKey] ?? headerStyles.default;
 
-  // Collapse logic: collapsed by default on all viewports; user can expand.
-  const isDefaultCollapsed = true;
-  const [isCollapsed, setIsCollapsed] = useState<boolean>(isDefaultCollapsed);
-
-  const toggleCollapse = () => setIsCollapsed(prev => !prev);
+  const visibleSlots = useMemo(() => {
+    const needed = Math.max(dogsInAreaCount + 1, 1);
+    return Math.min(positions, needed);
+  }, [dogsInAreaCount, positions]);
 
   return (
-    <div className="col-span-1">
+    <div className="col-span-1 rounded-xl overflow-hidden shadow-md border border-gray-200/50 bg-white">
       <div
-        className="bg-gray-100 p-3 md:p-4 rounded-t-lg flex justify-between items-center cursor-pointer select-none"
-        onClick={toggleCollapse}
-        onDragOver={(e) => {
-          // If collapsed, expand to allow dropping inside
-          if (isCollapsed) {
-            e.preventDefault();
-            setIsCollapsed(false);
-          }
-        }}
+        className="p-3 md:p-4 flex justify-between items-center"
+        style={{ background: headerStyle.background, color: headerStyle.color }}
       >
-        <h3 className="text-lg font-bold flex items-center gap-2">
-          {/* Collapse / Expand chevron – visible only on mobile */}
-          <span className="inline-block transform transition-transform duration-200"
-            style={{ transform: isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)' }}
-          >
-            ▼
-          </span>
-          {title}
-        </h3>
-        <span className={`text-sm font-medium px-2 py-1 rounded-full ${capacityColor}`}>
+        <h3 className="text-lg font-semibold uppercase tracking-wide">{title}</h3>
+        <span className={`text-sm font-semibold px-2 py-1 rounded-full bg-white/60 ${capacityBadgeClasses}`}>
           {dogsInAreaCount}/{positions}
         </span>
       </div>
-      {/* Content: hide when collapsed */}
-      <div className={`border-2 border-gray-300 rounded-b-lg ${isCollapsed ? 'hidden' : ''}`}>
-        <div className="space-y-3 md:space-y-4 p-2">
-          {Array.from({ length: positions }, (_, i) => (
-            <DropZone 
-              key={`${area}-${i + 1}`}
-              area={area} 
-              position={i + 1} 
-              dogsInPosition={getDogsInPosition(area, i + 1)}
+      <div className="bg-white/90">
+        <div className="space-y-3 md:space-y-4 p-3">
+          {Array.from({ length: visibleSlots }, (_, index) => (
+            <DropZone
+              key={`${area}-${index + 1}`}
+              area={area}
+              position={index + 1}
+              dogsInPosition={getDogsInPosition(area, index + 1)}
               handleDragOver={handleDragOver}
               handleDrop={handleDrop}
               handleDragStart={handleDragStart}
@@ -88,4 +83,4 @@ export const AreaSection: React.FC<AreaSectionProps> = ({
       </div>
     </div>
   );
-}; 
+};

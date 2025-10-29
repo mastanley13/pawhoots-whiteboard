@@ -27,13 +27,13 @@ export const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
   }
 
   return (
-    <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl shadow-md">
+    <div className="mb-6 p-4 bg-[rgba(48,167,216,0.12)] border border-[rgba(48,167,216,0.3)] rounded-xl shadow-md">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-xl font-bold text-blue-700 flex items-center gap-2">
+        <h3 className="text-xl font-bold text-[var(--phz-blue)] flex items-center gap-2">
           <span>⏰</span>
           <span>Upcoming Scheduled Moves</span>
         </h3>
-        <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">
+        <span className="bg-[rgba(48,167,216,0.2)] text-[var(--phz-blue)] text-xs font-semibold px-2.5 py-0.5 rounded-full">
           {allScheduledMoves.length} {allScheduledMoves.length === 1 ? 'Move' : 'Moves'}
         </span>
       </div>
@@ -53,7 +53,7 @@ export const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
             <div className="flex gap-2">
               <button 
                 onClick={() => setSelectedDog(dog)}
-                className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm"
+                className="px-3 py-1 bg-[rgba(48,167,216,0.2)] text-[var(--phz-blue)] rounded text-sm"
               >
                 View
               </button>
@@ -68,7 +68,7 @@ export const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
         ))}
 
         {allScheduledMoves.length > 5 && (
-          <div className="text-center text-sm text-blue-700">
+          <div className="text-center text-sm text-[var(--phz-blue)]">
             + {allScheduledMoves.length - 5} more scheduled moves
           </div>
         )}

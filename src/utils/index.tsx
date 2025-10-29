@@ -1,5 +1,5 @@
 // import React from 'react';
-import { Dog } from '../types/types';
+import { Dog, GroupArea, LocationArea, LocationHistoryEntry } from '../types/types';
 
 // Helper function for formatting time elapsed
 export const formatTimeElapsed = (date: Date): string => {
@@ -102,4 +102,53 @@ export const getTraitIcon = (trait: string): JSX.Element | null => {
     default:
       return null;
   }
-}; 
+};
+
+const yardToGroupMap: Record<string, GroupArea> = {
+  yard1: 'small',
+  yard2: 'medium',
+  yard3: 'large',
+  yard1Holding: 'buddy_play',
+  yard2Holding: 'play_school',
+  indoorPlayroom1: 'buddy_play',
+  indoorPlayroom2: 'play_school',
+  smallGroup: 'small',
+  mediumGroup: 'medium',
+  largeGroup: 'large',
+  buddyPlay: 'buddy_play',
+  playSchool: 'play_school',
+};
+
+export const normalizeLocationArea = (
+  area: LocationArea | string | null | undefined
+): LocationArea => {
+  if (!area) return null;
+  const key = typeof area === 'string' ? area : String(area);
+  const normalized = yardToGroupMap[key] ?? area;
+  return normalized as LocationArea;
+};
+
+const normalizeHistoryEntry = (entry: LocationHistoryEntry): LocationHistoryEntry => ({
+  ...entry,
+  area: normalizeLocationArea(entry.area),
+});
+
+export const normalizeDogRecord = (dog: Dog): Dog => {
+  const normalizedLocation =
+    dog.location && typeof dog.location === 'object'
+      ? {
+          ...dog.location,
+          area: normalizeLocationArea(dog.location.area),
+        }
+      : dog.location;
+
+  const normalizedHistory = Array.isArray(dog.locationHistory)
+    ? dog.locationHistory.map(normalizeHistoryEntry)
+    : [];
+
+  return {
+    ...dog,
+    location: normalizedLocation,
+    locationHistory: normalizedHistory,
+  };
+};
