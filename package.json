@@ -13,6 +13,8 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "start": "serve -s dist -l $PORT",
+    "api:mock": "node server/boarding-api.js",
+    "api:reset": "node server/reset-data.js",
     "heroku-postbuild": "npm run build"
   },
   "dependencies": {

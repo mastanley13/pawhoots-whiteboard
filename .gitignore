@@ -34,3 +34,6 @@ yarn-error.log*
 
 # Vite
 .vite 
+# Boarding API data
+server/data
+
